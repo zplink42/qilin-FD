@@ -1,0 +1,420 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+group = 'dev.qilinfd'
+version = '0.1.0-SNAPSHOT'
+
+ext {
+    compatibleFlowDroidVersion = '2.15.1'
+}
+
+repositories {
+    mavenCentral()
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+application {
+    mainClass = 'dev.qilinfd.bridge.BridgeMain'
+}
+
+def qilinJarPath = providers.gradleProperty('qilinJar')
+        .orElse('D:/gitdesk/Qilin/artifact/Qilin-0.9.8-SNAPSHOT.jar')
+def analysisJrePath = providers.gradleProperty('analysisJre')
+        .orElse('D:/gitdesk/Qilin/artifact/benchmarks/JREs/jre1.8.0_121_debug')
+
+configurations {
+    standaloneFlowDroid
+    owaspBenchmarkCompile
+    vulnerableAppCompile
+}
+
+dependencies {
+    // Qilin supplies its PTA API and the classic Soot model used by that PTA.
+    implementation files(qilinJarPath)
+
+    // FlowDroid remains an independent component. Qilin's bundled Soot satisfies its Soot API references.
+    implementation("de.fraunhofer.sit.sse.flowdroid:soot-infoflow:${compatibleFlowDroidVersion}") {
+        transitive = false
+    }
+    implementation 'net.sf.trove4j:core:3.1.0'
+    runtimeOnly 'org.slf4j:slf4j-simple:2.0.17'
+
+    // Optional local copy for inspecting the exact FlowDroid binary used by this project.
+    standaloneFlowDroid("de.fraunhofer.sit.sse.flowdroid:soot-infoflow:${compatibleFlowDroidVersion}") {
+        transitive = false
+    }
+
+    owaspBenchmarkCompile 'javax.servlet:javax.servlet-api:3.1.0'
+
+    vulnerableAppCompile 'org.springframework:spring-context:5.3.31'
+    vulnerableAppCompile 'org.springframework:spring-web:5.3.31'
+    vulnerableAppCompile 'org.apache.commons:commons-lang3:3.12.0'
+    vulnerableAppCompile 'com.fasterxml.jackson.core:jackson-annotations:2.13.5'
+
+    testImplementation platform('org.junit:junit-bom:5.11.4')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+}
+
+test {
+    useJUnitPlatform()
+}
+
+tasks.register('stageFlowDroidJar', Sync) {
+    description = 'Copies the independent FlowDroid JAR used by the bridge into lib/flowdroid for inspection.'
+    group = 'setup'
+    outputs.upToDateWhen { false }
+    doFirst {
+        delete fileTree(layout.projectDirectory.dir('lib/flowdroid')) {
+            include 'soot-infoflow-*.jar'
+        }
+    }
+    from configurations.standaloneFlowDroid
+    into layout.projectDirectory.dir('lib/flowdroid')
+    preserve {
+        include '.gitkeep'
+    }
+}
+
+tasks.register('compileSmoke', JavaCompile) {
+    description = 'Compiles the plain-Java smoke target that is analyzed by FlowDroid.'
+    group = 'verification'
+    source = fileTree('benchmarks/smoke/src') { include '**/*.java' }
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('smoke/classes')
+    options.release = 8
+    options.encoding = 'UTF-8'
+}
+
+tasks.register('smokeJar', Jar) {
+    description = 'Packages the smoke target for static analysis.'
+    group = 'verification'
+    dependsOn tasks.named('compileSmoke')
+    archiveFileName = 'qilinfd-smoke.jar'
+    destinationDirectory = layout.buildDirectory.dir('smoke')
+    from tasks.named('compileSmoke').map { it.destinationDirectory }
+}
+
+tasks.register('compileSecuriBench', JavaCompile) {
+    description = 'Compiles the checked-out SecuriBench Micro corpus and a Java entry-point harness.'
+    group = 'verification'
+    source = files(
+            fileTree('benchmarks/securibench-micro/src') { include '**/*.java' },
+            fileTree('benchmarks/securibench-harness/src') { include '**/*.java' })
+    classpath = files(fileTree('benchmarks/securibench-micro/lib') { include '*.jar' })
+    destinationDirectory = layout.buildDirectory.dir('securibench/classes')
+    options.release = 8
+    options.encoding = 'UTF-8'
+}
+
+tasks.register('securiBenchJar', Jar) {
+    description = 'Packages SecuriBench Micro with its analysis-only harness.'
+    group = 'verification'
+    dependsOn tasks.named('compileSecuriBench')
+    archiveFileName = 'securibench-micro-harness.jar'
+    destinationDirectory = layout.buildDirectory.dir('securibench')
+    from tasks.named('compileSecuriBench').map { it.destinationDirectory }
+}
+
+tasks.register('compileOwaspBenchmarkSelected', JavaCompile) {
+    description = 'Compiles the confirmed-positive OWASP Benchmark XSS route and its analysis harness.'
+    group = 'verification'
+    source = files(
+            'benchmarks/github/benchmark-java/src/main/java/org/owasp/benchmark/testcode/BenchmarkTest00380.java',
+            'benchmarks/harness/github/owasp-benchmark/src/org/owasp/benchmark/testcode/BenchmarkTest00380Harness.java')
+    classpath = configurations.owaspBenchmarkCompile
+    destinationDirectory = layout.buildDirectory.dir('github/owasp-benchmark/classes')
+    options.release = 8
+    options.encoding = 'UTF-8'
+}
+
+tasks.register('stageOwaspBenchmarkLibraries', Copy) {
+    description = 'Stages Servlet API classes required while analyzing the selected OWASP endpoint.'
+    group = 'setup'
+    from configurations.owaspBenchmarkCompile
+    into layout.buildDirectory.dir('github/owasp-benchmark/lib')
+}
+
+tasks.register('owaspBenchmarkSelectedJar', Jar) {
+    description = 'Packages the selected OWASP Benchmark XSS endpoint for Qilin analysis.'
+    group = 'verification'
+    dependsOn tasks.named('compileOwaspBenchmarkSelected')
+    archiveFileName = 'owasp-benchmark-xss-selected.jar'
+    destinationDirectory = layout.buildDirectory.dir('github/owasp-benchmark')
+    from tasks.named('compileOwaspBenchmarkSelected').map { it.destinationDirectory }
+}
+
+tasks.register('compileJulietSelected', JavaCompile) {
+    description = 'Compiles the Juliet CWE-78 environment-to-command baseline and its explicit entry harness.'
+    group = 'verification'
+    source = files(
+            'benchmarks/github/juliet-test-suite/src/testcases/CWE78_OS_Command_Injection/CWE78_OS_Command_Injection__Environment_01.java',
+            'benchmarks/github/juliet-test-suite/src/testcasesupport/AbstractTestCaseBase.java',
+            'benchmarks/github/juliet-test-suite/src/testcasesupport/AbstractTestCase.java',
+            'benchmarks/github/juliet-test-suite/src/testcasesupport/IO.java',
+            'benchmarks/harness/github/juliet/src/testcases/CWE78_OS_Command_Injection/CWE78EnvironmentHarness.java')
+    classpath = files('benchmarks/github/juliet-test-suite/lib/servlet-api.jar')
+    destinationDirectory = layout.buildDirectory.dir('github/juliet/classes')
+    options.release = 8
+    options.encoding = 'UTF-8'
+}
+
+tasks.register('julietSelectedJar', Jar) {
+    description = 'Packages the selected Juliet CWE-78 test for Qilin analysis.'
+    group = 'verification'
+    dependsOn tasks.named('compileJulietSelected')
+    archiveFileName = 'juliet-cwe78-environment-selected.jar'
+    destinationDirectory = layout.buildDirectory.dir('github/juliet')
+    from tasks.named('compileJulietSelected').map { it.destinationDirectory }
+}
+
+tasks.register('compileVulnerableAppSelected', JavaCompile) {
+    description = 'Compiles the VulnerableApp command-injection route with a standalone input harness.'
+    group = 'verification'
+    source = files(
+            'benchmarks/github/vulnerable-app/src/main/java/org/sasanlabs/service/vulnerability/commandInjection/CommandInjection.java',
+            'benchmarks/github/vulnerable-app/src/main/java/org/sasanlabs/service/vulnerability/bean/GenericVulnerabilityResponseBean.java',
+            'benchmarks/github/vulnerable-app/src/main/java/org/sasanlabs/service/exception/ServiceApplicationException.java',
+            'benchmarks/github/vulnerable-app/src/main/java/org/sasanlabs/service/exception/ExceptionStatusCodeEnum.java',
+            'benchmarks/github/vulnerable-app/src/main/java/org/sasanlabs/internal/utility/LevelConstants.java',
+            'benchmarks/github/vulnerable-app/src/main/java/org/sasanlabs/internal/utility/MessageBundle.java',
+            'benchmarks/github/vulnerable-app/src/main/java/org/sasanlabs/internal/utility/Variant.java',
+            'benchmarks/github/vulnerable-app/src/main/java/org/sasanlabs/internal/utility/annotations/AttackVector.java',
+            'benchmarks/github/vulnerable-app/src/main/java/org/sasanlabs/internal/utility/annotations/VulnerableAppRequestMapping.java',
+            'benchmarks/github/vulnerable-app/src/main/java/org/sasanlabs/internal/utility/annotations/VulnerableAppRestController.java',
+            'benchmarks/github/vulnerable-app/src/main/java/org/sasanlabs/vulnerability/types/VulnerabilityType.java',
+            'benchmarks/harness/github/vulnerable-app/src/org/sasanlabs/analysis/CommandInjectionHarness.java')
+    classpath = configurations.vulnerableAppCompile
+    destinationDirectory = layout.buildDirectory.dir('github/vulnerable-app/classes')
+    options.release = 8
+    options.encoding = 'UTF-8'
+}
+
+tasks.register('vulnerableAppSelectedJar', Jar) {
+    description = 'Packages the selected VulnerableApp command-injection endpoint for Qilin analysis.'
+    group = 'verification'
+    dependsOn tasks.named('compileVulnerableAppSelected')
+    archiveFileName = 'vulnerable-app-command-selected.jar'
+    destinationDirectory = layout.buildDirectory.dir('github/vulnerable-app')
+    from tasks.named('compileVulnerableAppSelected').map { it.destinationDirectory }
+}
+
+tasks.register('stageVulnerableAppLibraries', Copy) {
+    description = 'Stages the libraries needed while analyzing the selected VulnerableApp endpoint.'
+    group = 'setup'
+    from configurations.vulnerableAppCompile
+    into layout.buildDirectory.dir('github/vulnerable-app/lib')
+}
+
+def configureAnalysisRun = { JavaExec task, String backend, String outputName ->
+    task.dependsOn tasks.named('classes'), tasks.named('smokeJar')
+    task.classpath = sourceSets.main.runtimeClasspath
+    task.mainClass = application.mainClass
+    task.maxHeapSize = '4g'
+    task.workingDir = projectDir
+    task.doFirst {
+        File jre = file(analysisJrePath.get())
+        if (!jre.exists()) {
+            throw new GradleException("Analysis JRE not found: ${jre}. Supply -PanalysisJre=<Java-8-JRE-directory>.")
+        }
+        File target = tasks.named('smokeJar').get().archiveFile.get().asFile
+        task.setArgs([
+                'run',
+                '--config', file("benchmarks/config/smoke-${backend}.properties").absolutePath,
+                '--set', "appPath=${target.absolutePath}",
+                '--set', "jre=${jre.absolutePath}",
+                '--set', "output=${file("results/${outputName}").absolutePath}"
+        ])
+    }
+}
+
+tasks.register('runSmokeQilin', JavaExec) {
+    description = 'Analyzes the smoke target with Qilin call graph and points-to results.'
+    group = 'verification'
+    configureAnalysisRun(delegate, 'qilin', 'smoke-qilin.txt')
+}
+
+tasks.register('runSmokeNative', JavaExec) {
+    description = 'Analyzes the smoke target with FlowDroid/Soot native SPARK configuration.'
+    group = 'verification'
+    configureAnalysisRun(delegate, 'native', 'smoke-native.txt')
+}
+
+tasks.register('verifySmokeQilin') {
+    description = 'Runs the Qilin-backed smoke analysis and checks that a leak is reported.'
+    group = 'verification'
+    dependsOn tasks.named('runSmokeQilin')
+    doLast {
+        File result = file('results/smoke-qilin.txt')
+        if (!result.text.contains('flowDroidLeaks=1')) {
+            throw new GradleException("Expected one Qilin-backed FlowDroid leak in ${result}.")
+        }
+    }
+}
+
+tasks.register('verifySmokeNative') {
+    description = 'Runs native FlowDroid smoke analysis and checks that a leak is reported.'
+    group = 'verification'
+    dependsOn tasks.named('runSmokeNative')
+    doLast {
+        File result = file('results/smoke-native.txt')
+        if (!result.text.contains('flowDroidLeaks=1')) {
+            throw new GradleException("Expected one native FlowDroid leak in ${result}.")
+        }
+    }
+}
+
+tasks.register('runSecuriBenchBasic1Qilin', JavaExec) {
+    description = 'Runs Qilin-backed FlowDroid over the SecuriBench Micro Basic1 expected-positive case.'
+    group = 'verification'
+    dependsOn tasks.named('classes'), tasks.named('securiBenchJar')
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = application.mainClass
+    maxHeapSize = '4g'
+    workingDir = projectDir
+    doFirst {
+        File jre = file(analysisJrePath.get())
+        if (!jre.exists()) {
+            throw new GradleException("Analysis JRE not found: ${jre}. Supply -PanalysisJre=<Java-8-JRE-directory>.")
+        }
+        File target = tasks.named('securiBenchJar').get().archiveFile.get().asFile
+        args = [
+                'run',
+                '--config', file('benchmarks/config/securibench-basic1-qilin.properties').absolutePath,
+                '--set', "appPath=${target.absolutePath}",
+                '--set', "libraries=${file('benchmarks/securibench-micro/lib').absolutePath}",
+                '--set', "jre=${jre.absolutePath}",
+                '--set', "output=${file('results/securibench-basic1-qilin.txt').absolutePath}"
+        ]
+    }
+}
+
+tasks.register('verifySecuriBenchBasic1Qilin') {
+    description = 'Checks Qilin-backed FlowDroid against the known-positive SecuriBench Micro Basic1 case.'
+    group = 'verification'
+    dependsOn tasks.named('runSecuriBenchBasic1Qilin')
+    doLast {
+        File result = file('results/securibench-basic1-qilin.txt')
+        if (!result.text.contains('flowDroidLeaks=1')) {
+            throw new GradleException("Expected one Qilin-backed FlowDroid leak in ${result}.")
+        }
+    }
+}
+
+def registerGithubQilinRun = { String taskName, String descriptionText, String jarTaskName,
+                               String configName, String resultName, Closure extraOverrides = { [] } ->
+    tasks.register(taskName, JavaExec) {
+        description = descriptionText
+        group = 'verification'
+        dependsOn tasks.named('classes'), tasks.named(jarTaskName)
+        classpath = sourceSets.main.runtimeClasspath
+        mainClass = application.mainClass
+        maxHeapSize = '4g'
+        workingDir = projectDir
+        doFirst {
+            File jre = file(analysisJrePath.get())
+            if (!jre.exists()) {
+                throw new GradleException("Analysis JRE not found: ${jre}. Supply -PanalysisJre=<Java-8-JRE-directory>.")
+            }
+            File target = tasks.named(jarTaskName).get().archiveFile.get().asFile
+            List<String> runArgs = [
+                    'run',
+                    '--config', file("benchmarks/config/${configName}").absolutePath,
+                    '--set', "appPath=${target.absolutePath}",
+                    '--set', "jre=${jre.absolutePath}",
+                    '--set', "output=${file("results/${resultName}").absolutePath}"
+            ]
+            runArgs.addAll(extraOverrides.call())
+            args = runArgs
+        }
+    }
+}
+
+registerGithubQilinRun(
+        'runOwaspBenchmarkQilin',
+        'Analyzes an OWASP Benchmark confirmed XSS endpoint with Qilin-backed FlowDroid.',
+        'owaspBenchmarkSelectedJar',
+        'github-owasp-benchmark-xss.properties',
+        'github-owasp-benchmark-xss.txt') {
+    ['--set', "libraries=${layout.buildDirectory.dir('github/owasp-benchmark/lib').get().asFile.absolutePath}"]
+}
+tasks.named('runOwaspBenchmarkQilin') {
+    dependsOn tasks.named('stageOwaspBenchmarkLibraries')
+}
+
+registerGithubQilinRun(
+        'runJulietQilin',
+        'Analyzes a Juliet CWE-78 confirmed bad flow with Qilin-backed FlowDroid.',
+        'julietSelectedJar',
+        'github-juliet-cwe78.properties',
+        'github-juliet-cwe78.txt') {
+    ['--set', "libraries=${file('benchmarks/github/juliet-test-suite/lib/servlet-api.jar').absolutePath}"]
+}
+
+registerGithubQilinRun(
+        'runVulnerableAppQilin',
+        'Analyzes the VulnerableApp command-injection endpoint with Qilin-backed FlowDroid.',
+        'vulnerableAppSelectedJar',
+        'github-vulnerable-app-command.properties',
+        'github-vulnerable-app-command.txt') {
+    ['--set', "libraries=${layout.buildDirectory.dir('github/vulnerable-app/lib').get().asFile.absolutePath}"]
+}
+tasks.named('runVulnerableAppQilin') {
+    dependsOn tasks.named('stageVulnerableAppLibraries')
+}
+
+tasks.register('runGithubCorpusQilin') {
+    description = 'Runs all selected GitHub-project taint analyses through Qilin-backed FlowDroid.'
+    group = 'verification'
+    dependsOn tasks.named('runOwaspBenchmarkQilin'), tasks.named('runJulietQilin'), tasks.named('runVulnerableAppQilin')
+}
+
+def registerGithubLeakVerification = { String taskName, String descriptionText, String runTaskName,
+                                       String resultName, int expectedLeaks ->
+    tasks.register(taskName) {
+        description = descriptionText
+        group = 'verification'
+        dependsOn tasks.named(runTaskName)
+        doLast {
+            File result = file("results/${resultName}")
+            String expected = "flowDroidLeaks=${expectedLeaks}"
+            if (!result.text.contains(expected)) {
+                throw new GradleException("Expected ${expected} in ${result}.")
+            }
+        }
+    }
+}
+
+registerGithubLeakVerification(
+        'verifyOwaspBenchmarkQilin',
+        'Checks the selected OWASP Benchmark confirmed XSS endpoint for one Qilin-backed leak.',
+        'runOwaspBenchmarkQilin',
+        'github-owasp-benchmark-xss.txt',
+        1)
+
+registerGithubLeakVerification(
+        'verifyJulietQilin',
+        'Checks the selected Juliet CWE-78 bad flow for one Qilin-backed leak.',
+        'runJulietQilin',
+        'github-juliet-cwe78.txt',
+        1)
+
+registerGithubLeakVerification(
+        'verifyVulnerableAppQilin',
+        'Checks the selected VulnerableApp command route for its two OS-specific Qilin-backed leaks.',
+        'runVulnerableAppQilin',
+        'github-vulnerable-app-command.txt',
+        2)
+
+tasks.register('verifyGithubCorpusQilin') {
+    description = 'Runs and verifies all selected GitHub-project Qilin-backed taint analyses.'
+    group = 'verification'
+    dependsOn tasks.named('verifyOwaspBenchmarkQilin'), tasks.named('verifyJulietQilin'),
+            tasks.named('verifyVulnerableAppQilin')
+}

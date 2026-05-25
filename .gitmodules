@@ -1,0 +1,20 @@
+[submodule "benchmarks/securibench-micro"]
+	path = benchmarks/securibench-micro
+	url = https://github.com/too4words/securibench-micro.git
+	shallow = true
+[submodule "benchmarks/flowdroid-official"]
+	path = benchmarks/flowdroid-official
+	url = https://github.com/secure-software-engineering/FlowDroid.git
+	shallow = true
+[submodule "benchmarks/github/benchmark-java"]
+	path = benchmarks/github/benchmark-java
+	url = https://github.com/OWASP-Benchmark/BenchmarkJava.git
+	shallow = true
+[submodule "benchmarks/github/juliet-test-suite"]
+	path = benchmarks/github/juliet-test-suite
+	url = https://github.com/find-sec-bugs/juliet-test-suite.git
+	shallow = true
+[submodule "benchmarks/github/vulnerable-app"]
+	path = benchmarks/github/vulnerable-app
+	url = https://github.com/SasanLabs/VulnerableApp.git
+	shallow = true

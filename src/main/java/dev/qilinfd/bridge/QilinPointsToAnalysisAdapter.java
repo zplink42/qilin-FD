@@ -4,6 +4,7 @@ import qilin.core.PTA;
 import soot.Context;
 import soot.Local;
 import soot.SootField;
+import soot.jimple.infoflow.FlowDroidLocalSplitter.SplittedLocal;
 
 final class QilinPointsToAnalysisAdapter implements soot.PointsToAnalysis {
     private final PTA pta;
@@ -14,12 +15,12 @@ final class QilinPointsToAnalysisAdapter implements soot.PointsToAnalysis {
 
     @Override
     public soot.PointsToSet reachingObjects(Local local) {
-        return wrap(pta.reachingObjects(local));
+        return wrap(pta.reachingObjects(originalLocal(local)));
     }
 
     @Override
     public soot.PointsToSet reachingObjects(Context context, Local local) {
-        return wrap(pta.reachingObjects(context, local));
+        return wrap(pta.reachingObjects(context, originalLocal(local)));
     }
 
     @Override
@@ -36,12 +37,12 @@ final class QilinPointsToAnalysisAdapter implements soot.PointsToAnalysis {
 
     @Override
     public soot.PointsToSet reachingObjects(Local local, SootField field) {
-        return wrap(pta.reachingObjects(local, field));
+        return wrap(pta.reachingObjects(originalLocal(local), field));
     }
 
     @Override
     public soot.PointsToSet reachingObjects(Context context, Local local, SootField field) {
-        return wrap(pta.reachingObjects(context, local, field));
+        return wrap(pta.reachingObjects(context, originalLocal(local), field));
     }
 
     @Override
@@ -53,5 +54,9 @@ final class QilinPointsToAnalysisAdapter implements soot.PointsToAnalysis {
 
     private static QilinPointsToSetAdapter wrap(qilin.core.sets.PointsToSet pointsToSet) {
         return new QilinPointsToSetAdapter(pointsToSet);
+    }
+
+    private static Local originalLocal(Local local) {
+        return local instanceof SplittedLocal split ? split.getOriginalLocal() : local;
     }
 }

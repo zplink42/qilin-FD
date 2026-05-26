@@ -53,8 +53,8 @@ gradle verifyGithubCorpusQilin
 
 ## 已观测结果
 
-使用独立 Qilin 与 FlowDroid 组合的 `pta=insens`、`callgraphMode=qilin`、
-`aliasing=pts` 配置运行后：
+使用独立 Qilin 与 FlowDroid 组合的顶层 `aliasing=pts` 和
+`qilinFlags=... -pta=insens ...` 配置运行后：
 
 | 配置标签 | Qilin/FlowDroid 检出的污点流数量 | 含义 |
 | --- | ---: | --- |

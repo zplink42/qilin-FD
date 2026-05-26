@@ -6,11 +6,12 @@
 
 | 组件 | 文件或坐标 | 职责 |
 | --- | --- | --- |
-| Qilin | `D:/gitdesk/Qilin/artifact/Qilin-0.9.8-SNAPSHOT.jar` | 运行指针分析，提供 PTA 查询与调用图；包含其匹配的 classic Soot `4.7.1`。 |
+| Qilin | `lib/qilin/Qilin-0.9.8-SNAPSHOT.jar`（复制自 `D:/gitdesk/Qilin/artifact/Qilin-0.9.8-SNAPSHOT.jar`） | 运行指针分析，提供 PTA 查询与调用图；包含其匹配的 classic Soot `4.7.1`。 |
 | FlowDroid | `de.fraunhofer.sit.sse.flowdroid:soot-infoflow:2.15.1` | 使用既有调用图与 points-to 查询执行污点分析；该发布版同样基于 Soot `4.7.1`。 |
 | bridge | `qilin-FD/src/main/java/dev/qilinfd/bridge` | 在两个独立构件之间完成适配、配置与结果输出。 |
 
 Qilin JAR 可以被替换，只要替换版本保持下面使用的 PTA/API 与同一 classic Soot 类型边界。
+构建时可使用 `-PqilinJar=lib/qilin/<另一个兼容 JAR>` 选择被评估版本。
 
 ## Qilin 契约
 
@@ -35,7 +36,7 @@ Qilin JAR 可以被替换，只要替换版本保持下面使用的 PTA/API 与�
 | `QilinPointsToSetAdapter` | 将 `qilin.core.sets.PointsToSet` 包装成 `soot.PointsToSet`。 |
 | `ExistingCallGraphICFGFactory` | 让 FlowDroid 的 ICFG 使用已安装到 `Scene` 的 Qilin 调用图。 |
 
-由于当前契约只使用原版 `PTA.getCallGraph()`，配置项 `callgraphMode` 的稳定值是 `qilin`。
+当前 bridge 固定使用原版 `PTA.getCallGraph()`，不再设置重复的 `callgraphMode` 配置项。
 特化或投影调用图只有在未来可替换 Qilin JAR 通过稳定接口显式暴露时，才适合加入 bridge 契约。
 
 ## 依赖选择

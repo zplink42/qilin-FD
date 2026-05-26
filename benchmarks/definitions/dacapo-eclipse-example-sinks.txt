@@ -1,0 +1,2 @@
+# Example command-execution sink model for an Eclipse experiment. Replace or extend for the question under study.
+<java.lang.Runtime: java.lang.Process exec(java.lang.String)>

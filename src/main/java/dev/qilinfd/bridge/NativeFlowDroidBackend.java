@@ -24,6 +24,7 @@ public final class NativeFlowDroidBackend implements AnalysisBackend {
         long start = System.nanoTime();
 
         Infoflow infoflow = new Infoflow();
+        infoflow.setThrowExceptions(true);
         InfoflowConfiguration flowConfig = infoflow.getConfig();
         flowConfig.setSootIntegrationMode(SootIntegrationMode.CreateNewInstance);
         flowConfig.setCallgraphAlgorithm(config.nativeCallgraphAlgorithm());
@@ -36,13 +37,13 @@ public final class NativeFlowDroidBackend implements AnalysisBackend {
         flowConfig.setPathAgnosticResults(true);
         flowConfig.setLogSourcesAndSinks(true);
         flowConfig.setIgnoreFlowsInSystemPackages(false);
-        flowConfig.setMaxThreadNum(config.integer("threads", 1));
-        if (config.longValue("timeoutSeconds", 0L) > 0L) {
-            flowConfig.setDataFlowTimeout(config.longValue("timeoutSeconds", 0L));
+        flowConfig.setMaxThreadNum(config.maxThreadNum());
+        if (config.dataFlowTimeoutSeconds() > 0L) {
+            flowConfig.setDataFlowTimeout(config.dataFlowTimeoutSeconds());
         }
 
         infoflow.computeInfoflow(
-                config.path("appPath").toString(),
+                config.applicationPath().toString(),
                 config.nativeLibraryClasspath(),
                 config.entryPoint(),
                 new DefaultSourceSinkManager(config.definitions("sources"), config.definitions("sinks")));
@@ -51,6 +52,7 @@ public final class NativeFlowDroidBackend implements AnalysisBackend {
         List<String> lines = new ArrayList<>();
         int leaks = results == null ? 0 : results.numConnections();
         lines.add("backend=native");
+        lines.add("label=" + config.value("label", "native-flowdroid"));
         lines.add("entryPoint=" + config.entryPoint());
         lines.add("callgraph=" + config.nativeCallgraphAlgorithm());
         lines.add("aliasing=" + config.aliasingAlgorithm());

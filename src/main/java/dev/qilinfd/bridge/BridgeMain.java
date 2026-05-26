@@ -5,10 +5,15 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 public final class BridgeMain {
+    private static final String DEFAULT_CONFIG = "benchmarks/config/smoke-native.properties";
+
     private BridgeMain() {
     }
 
     public static void main(String[] args) throws Exception {
+        if (args.length == 0) {
+            args = new String[] {"run", "--config", DEFAULT_CONFIG};
+        }
         CliRequest request = CliRequest.parse(args);
         AnalysisConfig config = AnalysisConfig.load(request.configPath(), request.overrides());
         if ("print-qilin-args".equals(request.command())) {

@@ -8,7 +8,6 @@ import soot.Scene;
 import soot.SootClass;
 import soot.SootMethod;
 import soot.Unit;
-import soot.jimple.infoflow.Infoflow;
 import soot.jimple.infoflow.InfoflowConfiguration;
 import soot.jimple.infoflow.InfoflowConfiguration.CodeEliminationMode;
 import soot.jimple.infoflow.InfoflowConfiguration.SootIntegrationMode;
@@ -26,13 +25,11 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 public final class QilinFlowDroidBackend implements AnalysisBackend {
     @Override
     public void run(AnalysisConfig config) throws IOException {
-        requirePublicQilinCallGraph(config);
         PTAScene.reset();
         PTAConfig.reset();
 
@@ -45,21 +42,23 @@ public final class QilinFlowDroidBackend implements AnalysisBackend {
         Scene.v().setCallGraph(callGraph);
         Scene.v().setPointsToAnalysis(new QilinPointsToAnalysisAdapter(pta));
 
-        Infoflow infoflow = createInfoflow(config);
+        QilinCompatibleInfoflow infoflow = createInfoflow(config);
         long flowDroidStart = System.nanoTime();
         infoflow.computeInfoflow(
-                config.path("appPath").toString(),
-                config.has("libraries") ? config.path("libraries").toString() : null,
+                config.applicationPath().toString(),
+                config.optionalLibraryPath() == null ? null : config.optionalLibraryPath().toString(),
                 config.entryPoint(),
                 new DefaultSourceSinkManager(config.definitions("sources"), config.definitions("sinks")));
         long flowDroidMillis = elapsedMillis(flowDroidStart);
         long totalMillis = elapsedMillis(totalStart);
 
-        writeResults(config, pta, infoflow.getResults(), ptaMillis, flowDroidMillis, totalMillis);
+        writeResults(config, pta, infoflow.getResults(), infoflow.repairedMissingLocalDeclarations(),
+                ptaMillis, flowDroidMillis, totalMillis);
     }
 
-    private static Infoflow createInfoflow(AnalysisConfig config) {
-        Infoflow infoflow = new Infoflow(null, false, new ExistingCallGraphICFGFactory());
+    private static QilinCompatibleInfoflow createInfoflow(AnalysisConfig config) {
+        QilinCompatibleInfoflow infoflow = new QilinCompatibleInfoflow(new ExistingCallGraphICFGFactory());
+        infoflow.setThrowExceptions(true);
         InfoflowConfiguration flowConfig = infoflow.getConfig();
         flowConfig.setSootIntegrationMode(SootIntegrationMode.UseExistingCallgraph);
         flowConfig.setAliasingAlgorithm(config.aliasingAlgorithm());
@@ -71,14 +70,15 @@ public final class QilinFlowDroidBackend implements AnalysisBackend {
         flowConfig.setPathAgnosticResults(true);
         flowConfig.setLogSourcesAndSinks(true);
         flowConfig.setIgnoreFlowsInSystemPackages(false);
-        flowConfig.setMaxThreadNum(config.integer("threads", 1));
-        if (config.longValue("timeoutSeconds", 0L) > 0L) {
-            flowConfig.setDataFlowTimeout(config.longValue("timeoutSeconds", 0L));
+        flowConfig.setMaxThreadNum(config.maxThreadNum());
+        if (config.dataFlowTimeoutSeconds() > 0L) {
+            flowConfig.setDataFlowTimeout(config.dataFlowTimeoutSeconds());
         }
         return infoflow;
     }
 
     private static void writeResults(AnalysisConfig config, PTA pta, InfoflowResults results,
+                                     int repairedMissingLocalDeclarations,
                                      long ptaMillis, long flowDroidMillis, long totalMillis) throws IOException {
         int leaks = results == null ? 0 : results.numConnections();
         InfoflowPerformanceData performanceData = results == null ? null : results.getPerformanceData();
@@ -90,6 +90,7 @@ public final class QilinFlowDroidBackend implements AnalysisBackend {
         lines.add("flowDroidCallGraph=qilin");
         lines.add("aliasing=" + config.aliasingAlgorithm());
         lines.add("qilinCallEdges=" + pta.getCallGraph().size());
+        lines.add("repairedFlowDroidBodyLocals=" + repairedMissingLocalDeclarations);
         lines.add("flowDroidLeaks=" + leaks);
         lines.add("ptaRuntimeMs=" + ptaMillis);
         lines.add("flowDroidRuntimeMs=" + flowDroidMillis);
@@ -143,14 +144,6 @@ public final class QilinFlowDroidBackend implements AnalysisBackend {
             }
         }
         return owners;
-    }
-
-    private static void requirePublicQilinCallGraph(AnalysisConfig config) {
-        String mode = config.value("callgraphMode", "qilin").toLowerCase(Locale.ROOT);
-        if (!mode.equals("qilin") && !mode.equals("ci") && !mode.equals("projected")) {
-            throw new IllegalArgumentException("The replaceable Qilin PTA contract exposes one public call graph via "
-                    + "PTA.getCallGraph(); use callgraphMode=qilin.");
-        }
     }
 
     private static String signature(SootMethod method) {

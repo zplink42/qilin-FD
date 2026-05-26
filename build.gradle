@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'dev.qilinfd'
-version = '0.1.0-SNAPSHOT'
+version = '0.0.1-SNAPSHOT'
 
 ext {
     compatibleFlowDroidVersion = '2.15.1'
@@ -25,9 +25,7 @@ application {
 }
 
 def qilinJarPath = providers.gradleProperty('qilinJar')
-        .orElse('D:/gitdesk/Qilin/artifact/Qilin-0.9.8-SNAPSHOT.jar')
-def analysisJrePath = providers.gradleProperty('analysisJre')
-        .orElse('D:/gitdesk/Qilin/artifact/benchmarks/JREs/jre1.8.0_121_debug')
+        .orElse(layout.projectDirectory.file('lib/qilin/Qilin-0.9.8-SNAPSHOT.jar').asFile.absolutePath)
 
 configurations {
     standaloneFlowDroid
@@ -212,38 +210,25 @@ tasks.register('stageVulnerableAppLibraries', Copy) {
     into layout.buildDirectory.dir('github/vulnerable-app/lib')
 }
 
-def configureAnalysisRun = { JavaExec task, String backend, String outputName ->
+def configureAnalysisRun = { JavaExec task, String backend ->
     task.dependsOn tasks.named('classes'), tasks.named('smokeJar')
     task.classpath = sourceSets.main.runtimeClasspath
     task.mainClass = application.mainClass
     task.maxHeapSize = '4g'
     task.workingDir = projectDir
-    task.doFirst {
-        File jre = file(analysisJrePath.get())
-        if (!jre.exists()) {
-            throw new GradleException("Analysis JRE not found: ${jre}. Supply -PanalysisJre=<Java-8-JRE-directory>.")
-        }
-        File target = tasks.named('smokeJar').get().archiveFile.get().asFile
-        task.setArgs([
-                'run',
-                '--config', file("benchmarks/config/smoke-${backend}.properties").absolutePath,
-                '--set', "appPath=${target.absolutePath}",
-                '--set', "jre=${jre.absolutePath}",
-                '--set', "output=${file("results/${outputName}").absolutePath}"
-        ])
-    }
+    task.args = ['run', '--config', file("benchmarks/config/smoke-${backend}.properties").absolutePath]
 }
 
 tasks.register('runSmokeQilin', JavaExec) {
     description = 'Analyzes the smoke target with Qilin call graph and points-to results.'
     group = 'verification'
-    configureAnalysisRun(delegate, 'qilin', 'smoke-qilin.txt')
+    configureAnalysisRun(delegate, 'qilin')
 }
 
 tasks.register('runSmokeNative', JavaExec) {
     description = 'Analyzes the smoke target with FlowDroid/Soot native SPARK configuration.'
     group = 'verification'
-    configureAnalysisRun(delegate, 'native', 'smoke-native.txt')
+    configureAnalysisRun(delegate, 'native')
 }
 
 tasks.register('verifySmokeQilin') {
@@ -278,21 +263,7 @@ tasks.register('runSecuriBenchBasic1Qilin', JavaExec) {
     mainClass = application.mainClass
     maxHeapSize = '4g'
     workingDir = projectDir
-    doFirst {
-        File jre = file(analysisJrePath.get())
-        if (!jre.exists()) {
-            throw new GradleException("Analysis JRE not found: ${jre}. Supply -PanalysisJre=<Java-8-JRE-directory>.")
-        }
-        File target = tasks.named('securiBenchJar').get().archiveFile.get().asFile
-        args = [
-                'run',
-                '--config', file('benchmarks/config/securibench-basic1-qilin.properties').absolutePath,
-                '--set', "appPath=${target.absolutePath}",
-                '--set', "libraries=${file('benchmarks/securibench-micro/lib').absolutePath}",
-                '--set', "jre=${jre.absolutePath}",
-                '--set', "output=${file('results/securibench-basic1-qilin.txt').absolutePath}"
-        ]
-    }
+    args = ['run', '--config', file('benchmarks/config/securibench-basic1-qilin.properties').absolutePath]
 }
 
 tasks.register('verifySecuriBenchBasic1Qilin') {
@@ -308,7 +279,7 @@ tasks.register('verifySecuriBenchBasic1Qilin') {
 }
 
 def registerGithubQilinRun = { String taskName, String descriptionText, String jarTaskName,
-                               String configName, String resultName, Closure extraOverrides = { [] } ->
+                               String configName ->
     tasks.register(taskName, JavaExec) {
         description = descriptionText
         group = 'verification'
@@ -317,22 +288,7 @@ def registerGithubQilinRun = { String taskName, String descriptionText, String j
         mainClass = application.mainClass
         maxHeapSize = '4g'
         workingDir = projectDir
-        doFirst {
-            File jre = file(analysisJrePath.get())
-            if (!jre.exists()) {
-                throw new GradleException("Analysis JRE not found: ${jre}. Supply -PanalysisJre=<Java-8-JRE-directory>.")
-            }
-            File target = tasks.named(jarTaskName).get().archiveFile.get().asFile
-            List<String> runArgs = [
-                    'run',
-                    '--config', file("benchmarks/config/${configName}").absolutePath,
-                    '--set', "appPath=${target.absolutePath}",
-                    '--set', "jre=${jre.absolutePath}",
-                    '--set', "output=${file("results/${resultName}").absolutePath}"
-            ]
-            runArgs.addAll(extraOverrides.call())
-            args = runArgs
-        }
+        args = ['run', '--config', file("benchmarks/config/${configName}").absolutePath]
     }
 }
 
@@ -340,10 +296,7 @@ registerGithubQilinRun(
         'runOwaspBenchmarkQilin',
         'Analyzes an OWASP Benchmark confirmed XSS endpoint with Qilin-backed FlowDroid.',
         'owaspBenchmarkSelectedJar',
-        'github-owasp-benchmark-xss.properties',
-        'github-owasp-benchmark-xss.txt') {
-    ['--set', "libraries=${layout.buildDirectory.dir('github/owasp-benchmark/lib').get().asFile.absolutePath}"]
-}
+        'github-owasp-benchmark-xss.properties')
 tasks.named('runOwaspBenchmarkQilin') {
     dependsOn tasks.named('stageOwaspBenchmarkLibraries')
 }
@@ -352,19 +305,13 @@ registerGithubQilinRun(
         'runJulietQilin',
         'Analyzes a Juliet CWE-78 confirmed bad flow with Qilin-backed FlowDroid.',
         'julietSelectedJar',
-        'github-juliet-cwe78.properties',
-        'github-juliet-cwe78.txt') {
-    ['--set', "libraries=${file('benchmarks/github/juliet-test-suite/lib/servlet-api.jar').absolutePath}"]
-}
+        'github-juliet-cwe78.properties')
 
 registerGithubQilinRun(
         'runVulnerableAppQilin',
         'Analyzes the VulnerableApp command-injection endpoint with Qilin-backed FlowDroid.',
         'vulnerableAppSelectedJar',
-        'github-vulnerable-app-command.properties',
-        'github-vulnerable-app-command.txt') {
-    ['--set', "libraries=${layout.buildDirectory.dir('github/vulnerable-app/lib').get().asFile.absolutePath}"]
-}
+        'github-vulnerable-app-command.properties')
 tasks.named('runVulnerableAppQilin') {
     dependsOn tasks.named('stageVulnerableAppLibraries')
 }

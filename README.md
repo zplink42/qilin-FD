@@ -9,12 +9,12 @@ Android 应用或修改 FlowDroid 内部实现。项目支持两种运行方式�
 
 ## 当前结论
 
-默认评估构件是已复制到本工程的未修改版本
+默认评估构件是已复制到本工程、包含 Tamiflex local 登记修复的版本
 `lib/qilin/Qilin-0.9.8-SNAPSHOT.jar`，其来源为
 `D:/gitdesk/Qilin/artifact/Qilin-0.9.8-SNAPSHOT.jar`。它只负责 Qilin PTA 与其
 经典 Soot 数据模型；本工程仅依赖 `qilin.core.PTA` 的 `getCallGraph()` 与
 `reachingObjects(...)` 系列接口，并在 `src/main/java/dev/qilinfd/bridge/` 内完成
-FlowDroid 所需的 points-to 与 ICFG 适配。
+FlowDroid 所需的 points-to 适配和既有调用图安装。
 
 `D:/gitdesk/sootup/build/libs/sootup-qilin-1.0.0-SNAPSHOT.jar` 使用的是
 `sootup.core.*` 模型与自己的调用图类型；当前 FlowDroid `soot-infoflow` 使用经典
@@ -71,8 +71,7 @@ gradle verifyGithubCorpusQilin
 ```
 
 结果写在 `results/`。`qilin` 输出包含 Qilin 调用图边数、PTA 耗时、
-FlowDroid 耗时和泄漏结果；对于 DaCapo 等大型程序，还会输出 FlowDroid 预处理前
-修复的方法体局部变量登记数。`native` 输出提供 FlowDroid/Soot 基线结果。
+FlowDroid 耗时和泄漏结果；`native` 输出提供 FlowDroid/Soot 基线结果。
 
 ## 配置实验
 

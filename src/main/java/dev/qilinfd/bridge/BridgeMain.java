@@ -5,7 +5,8 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 public final class BridgeMain {
-    private static final String DEFAULT_CONFIG = "benchmarks/config/smoke-native.properties";
+//    private static final String DEFAULT_CONFIG = "benchmarks/config/smoke-qilin.properties";
+    private static final String DEFAULT_CONFIG = "benchmarks/config/dacapo-eclipse-qilin.properties";
 
     private BridgeMain() {
     }

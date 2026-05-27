@@ -53,14 +53,13 @@ flowchart TD
 | `AnalysisConfig` | 将 properties 转为 Qilin 参数与 FlowDroid 配置 |
 | `QilinFlowDroidBackend` | 先运行 Qilin，再运行使用其结果的 FlowDroid |
 | `QilinPointsToAnalysisAdapter` | 把 FlowDroid 的 classic-Soot points-to 查询转发到 `PTA` |
-| `ExistingCallGraphICFGFactory` | 让 FlowDroid 遍历 Qilin 已构造的调用图 |
 
 `native` 后端不运行 Qilin，而让 FlowDroid/Soot 自己构建分析所需信息，可作为比较基线。
 
 ## 4. Qilin JAR 如何替换
 
-工程默认从 `lib/qilin/Qilin-0.9.8-SNAPSHOT.jar` 加载 Qilin。该文件来自未修改的
-classic-Soot Qilin 项目，是当前比较基准。
+工程默认从 `lib/qilin/Qilin-0.9.8-SNAPSHOT.jar` 加载 Qilin。该文件来自
+classic-Soot Qilin 项目，并已包含 Tamiflex 反射建模的 local 登记修复。
 
 将另一个兼容 JAR 放到同一目录后，可在一次实验中覆盖默认版本：
 
@@ -181,7 +180,6 @@ Qilin 后端结果位于配置的 `output` 文件中，最重要的字段是：
 | --- | --- |
 | `pta` | 实际使用的 Qilin PTA 名称 |
 | `qilinCallEdges` | Qilin 调用图边数，可用于比较不同 PTA 的可达性变化 |
-| `repairedFlowDroidBodyLocals` | FlowDroid 预处理前，bridge 为 classic-Soot 方法体补登记的局部变量数；大型旧字节码上非零是兼容性修复记录，不是泄漏数 |
 | `flowDroidLeaks` | FlowDroid 发现的 source-to-sink 连接数 |
 | `ptaRuntimeMs` | Qilin PTA 所用时间 |
 | `flowDroidRuntimeMs` | 在已接入 Qilin 结果后，FlowDroid 数据流阶段所用时间 |
@@ -190,16 +188,20 @@ Qilin 后端结果位于配置的 `output` 文件中，最重要的字段是：
 实验比较时，应保持目标程序、source/sink 文件和 FlowDroid 参数不变，只替换 Qilin
 JAR 或 PTA 选项；这样结果差异才主要反映 Qilin 的影响。
 
-## 8. DaCapo Eclipse 的 local-splitting 兼容修复
+## 8. DaCapo Eclipse 的 Qilin 修复
 
 FlowDroid 在正式污点传播前会使用 `FlowDroidLocalSplitter` 拆分可达方法体中的局部变量。
-DaCapo Eclipse 经 Qilin/Soot 建图后存在少量语句引用的 `Local` 未登记在对应
-`Body.getLocals()` 中；Soot `SimpleLocalDefs` 会按照局部变量编号访问数组，因此此前会
-抛出 `ArrayIndexOutOfBoundsException`。
+此前的问题定位到 Qilin `qilin.core.reflection.TamiflexModel`：处理
+`Constructor.newInstance(...)`、`Method.invoke(...)` 与反射数组读取时，它创建名称为
+`intermediate/...` 的 `JimpleLocal` 并插入使用该 local 的语句，却没有把 local 加到
+`Body.getLocals()`。带 Eclipse 反射日志运行时可触发 7 个这类缺失项；关闭
+`reflectionLog` 后缺失项为 0。Soot `SimpleLocalDefs` 按合法方法体的不变量处理
+local，因此这里的根因是 Qilin 反射建模 bug，而不是 FlowDroid splitter 产生了损坏。
 
-`QilinCompatibleInfoflow` 现在在 FlowDroid splitter 执行前补齐这类登记，并将
-splitter 生成的临时 local 在 points-to 查询时映射回 Qilin 原始 local。这样既保留
-FlowDroid 自身的预处理，也不会使顶层配置 `aliasing=pts` 绕开 Qilin PTA。
+当前默认 Qilin JAR 已在创建这些 local 时将其加入 `Body.getLocals()`，因此 bridge
+直接使用标准 `Infoflow`，不再执行补登记或输出兼容层统计。FlowDroid 正常的 local
+splitting 仍然会产生临时 local；`QilinPointsToAnalysisAdapter` 会在 points-to 查询时
+将它们映射回 Qilin 原始 local，从而保证 `aliasing=pts` 仍然查询 Qilin PTA。
 
 桥接还开启了 FlowDroid 的异常传播：若数据流阶段再次异常，运行会失败，而不会将
 尚未完成的分析误写成 `flowDroidLeaks=0`。

@@ -1,0 +1,19 @@
+backend=qilin
+label=securibench-basic1-qilin
+entryPoint=<securibench.micro.basic.Basic1Harness: void main(java.lang.String[])>
+pta=insensitive
+flowDroidCallGraph=qilin
+aliasing=PtsBased
+qilinCallEdges=44610
+flowDroidLeaks=1
+ptaRuntimeMs=11661
+flowDroidRuntimeMs=420
+totalRuntimeMs=12096
+sourceDefinitions=2
+sinkDefinitions=2
+flowDroidSourceCount=2
+flowDroidSinkCount=1
+flowDroidTaintPropagationSeconds=0
+flowDroidEdgePropagationCount=5
+sourceMethod,sourceStmt,sinkMethod,sinkStmt
+"<securibench.micro.basic.Basic1: void doGet(javax.servlet.http.HttpServletRequest,javax.servlet.http.HttpServletResponse)>","str = interfaceinvoke req.<javax.servlet.http.HttpServletRequest: java.lang.String getParameter(java.lang.String)>(""name"") @line 36","<securibench.micro.basic.Basic1: void doGet(javax.servlet.http.HttpServletRequest,javax.servlet.http.HttpServletResponse)>","virtualinvoke writer.<java.io.PrintWriter: void println(java.lang.String)>(str) @line 39"

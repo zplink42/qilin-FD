@@ -24,6 +24,9 @@ FlowDroid 所需的 points-to 适配和既有调用图安装。
 第一次接触 FlowDroid 时，请从
 [docs/flowdroid-for-qilin-users.md](docs/flowdroid-for-qilin-users.md) 开始阅读，其中
 按执行顺序解释了 source/sink、桥接流程与所有常用配置项。
+按源码选定 source/sink 并实际复现实验的教程见
+[docs/step-by-step-taint-experiments.md](docs/step-by-step-taint-experiments.md)，其中逐步运行
+smoke、FlowDroid 官方正例和 Juliet CWE-78。
 
 ## 依赖布局
 
@@ -68,6 +71,12 @@ gradle verifySecuriBenchBasic1Qilin
 
 ```powershell
 gradle verifyGithubCorpusQilin
+```
+
+运行教程中三个由小到大的实验，并核对各自的预期泄漏数：
+
+```powershell
+gradle verifyGuidedExperimentsQilin
 ```
 
 结果写在 `results/`。`qilin` 输出包含 Qilin 调用图边数、PTA 耗时、
@@ -184,9 +193,9 @@ Qilin 分析选择。该配置同时包含 FlowDroid 所需的示例 source/sink
 
 - `benchmarks/securibench-micro`：原始 Java SecuriBench Micro 子模块，适合 precision/recall
   小测试，且用例带预期漏洞数量。
-- `benchmarks/flowdroid-official`：FlowDroid 官方子模块；其中
-  `soot-infoflow/test/soot/jimple/infoflow/test/securibench` 提供普通 Java 的官方
-  期望结果映射，可继续转成批量 Qilin 实验清单。
+- `benchmarks/flowdroid-official`：FlowDroid 官方子模块；当前已将官方断言为 1 条流的
+  `ConstantTestCode.easyConstantVarTest()` 接为普通 Java Qilin 实验，其余官方测试
+  可继续转成批量实验清单。
 - `benchmarks/github/benchmark-java`：OWASP BenchmarkJava，当前选取一个官方标记为
   `true` 的 XSS 用例进行 Qilin/FlowDroid 实测。
 - `benchmarks/github/juliet-test-suite`：Juliet Java Test Suite，当前选取 CWE-78

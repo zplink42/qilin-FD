@@ -1,0 +1,19 @@
+backend=qilin
+label=github-owasp-benchmark-xss-00380
+entryPoint=<org.owasp.benchmark.testcode.BenchmarkTest00380Harness: void main(java.lang.String[])>
+pta=insensitive
+flowDroidCallGraph=qilin
+aliasing=PtsBased
+qilinCallEdges=44612
+flowDroidLeaks=1
+ptaRuntimeMs=11053
+flowDroidRuntimeMs=420
+totalRuntimeMs=11485
+sourceDefinitions=2
+sinkDefinitions=1
+flowDroidSourceCount=2
+flowDroidSinkCount=1
+flowDroidTaintPropagationSeconds=0
+flowDroidEdgePropagationCount=25
+sourceMethod,sourceStmt,sinkMethod,sinkStmt
+"<org.owasp.benchmark.testcode.BenchmarkTest00380: void doPost(javax.servlet.http.HttpServletRequest,javax.servlet.http.HttpServletResponse)>","param = interfaceinvoke request.<javax.servlet.http.HttpServletRequest: java.lang.String getParameter(java.lang.String)>(""BenchmarkTest00380"") @line 43","<org.owasp.benchmark.testcode.BenchmarkTest00380: void doPost(javax.servlet.http.HttpServletRequest,javax.servlet.http.HttpServletResponse)>","virtualinvoke $stack12.<java.io.PrintWriter: void print(java.lang.String)>(bar) @line 68"

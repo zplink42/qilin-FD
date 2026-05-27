@@ -1,0 +1,19 @@
+backend=qilin
+label=smoke-qilin
+entryPoint=<dev.qilinfd.bench.SimpleLeak: void main(java.lang.String[])>
+pta=insensitive
+flowDroidCallGraph=qilin
+aliasing=PtsBased
+qilinCallEdges=9
+flowDroidLeaks=1
+ptaRuntimeMs=1059
+flowDroidRuntimeMs=247
+totalRuntimeMs=1323
+sourceDefinitions=1
+sinkDefinitions=1
+flowDroidSourceCount=2
+flowDroidSinkCount=1
+flowDroidTaintPropagationSeconds=0
+flowDroidEdgePropagationCount=4
+sourceMethod,sourceStmt,sinkMethod,sinkStmt
+"<dev.qilinfd.bench.SimpleLeak: void main(java.lang.String[])>","value = staticinvoke <dev.qilinfd.bench.TaintApi: java.lang.String source()>() @line 8","<dev.qilinfd.bench.SimpleLeak: void main(java.lang.String[])>","staticinvoke <dev.qilinfd.bench.TaintApi: void sink(java.lang.String)>(value) @line 9"

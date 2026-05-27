@@ -120,6 +120,29 @@ tasks.register('securiBenchJar', Jar) {
     from tasks.named('compileSecuriBench').map { it.destinationDirectory }
 }
 
+tasks.register('compileFlowDroidOfficialConstantSelected', JavaCompile) {
+    description = 'Compiles FlowDroid official ConstantTestCode.easyConstantVarTest and a Java entry-point harness.'
+    group = 'verification'
+    source = files(
+            'benchmarks/flowdroid-official/soot-infoflow/test/soot/jimple/infoflow/test/ConstantTestCode.java',
+            'benchmarks/flowdroid-official/soot-infoflow/test/soot/jimple/infoflow/test/android/ConnectionManager.java',
+            'benchmarks/flowdroid-official/soot-infoflow/test/soot/jimple/infoflow/test/android/TelephonyManager.java',
+            'benchmarks/harness/flowdroid-official/src/dev/qilinfd/bench/flowdroid/ConstantTestHarness.java')
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('flowdroid-official/constant/classes')
+    options.release = 8
+    options.encoding = 'UTF-8'
+}
+
+tasks.register('flowDroidOfficialConstantSelectedJar', Jar) {
+    description = 'Packages the selected FlowDroid official positive test for Qilin analysis.'
+    group = 'verification'
+    dependsOn tasks.named('compileFlowDroidOfficialConstantSelected')
+    archiveFileName = 'flowdroid-official-constant-selected.jar'
+    destinationDirectory = layout.buildDirectory.dir('flowdroid-official/constant')
+    from tasks.named('compileFlowDroidOfficialConstantSelected').map { it.destinationDirectory }
+}
+
 tasks.register('compileOwaspBenchmarkSelected', JavaCompile) {
     description = 'Compiles the confirmed-positive OWASP Benchmark XSS route and its analysis harness.'
     group = 'verification'
@@ -278,6 +301,29 @@ tasks.register('verifySecuriBenchBasic1Qilin') {
     }
 }
 
+tasks.register('runFlowDroidOfficialConstantQilin', JavaExec) {
+    description = 'Runs Qilin-backed FlowDroid over the official ConstantTestCode.easyConstantVarTest positive case.'
+    group = 'verification'
+    dependsOn tasks.named('classes'), tasks.named('flowDroidOfficialConstantSelectedJar')
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = application.mainClass
+    maxHeapSize = '4g'
+    workingDir = projectDir
+    args = ['run', '--config', file('benchmarks/config/flowdroid-official-constant-qilin.properties').absolutePath]
+}
+
+tasks.register('verifyFlowDroidOfficialConstantQilin') {
+    description = 'Checks Qilin-backed FlowDroid against its official expected-positive constant-variable case.'
+    group = 'verification'
+    dependsOn tasks.named('runFlowDroidOfficialConstantQilin')
+    doLast {
+        File result = file('results/flowdroid-official-constant-qilin.txt')
+        if (!result.text.contains('flowDroidLeaks=1')) {
+            throw new GradleException("Expected one Qilin-backed FlowDroid leak in ${result}.")
+        }
+    }
+}
+
 def registerGithubQilinRun = { String taskName, String descriptionText, String jarTaskName,
                                String configName ->
     tasks.register(taskName, JavaExec) {
@@ -364,4 +410,11 @@ tasks.register('verifyGithubCorpusQilin') {
     group = 'verification'
     dependsOn tasks.named('verifyOwaspBenchmarkQilin'), tasks.named('verifyJulietQilin'),
             tasks.named('verifyVulnerableAppQilin')
+}
+
+tasks.register('verifyGuidedExperimentsQilin') {
+    description = 'Runs the three step-by-step tutorial experiments: smoke, FlowDroid official, and Juliet.'
+    group = 'verification'
+    dependsOn tasks.named('verifySmokeQilin'), tasks.named('verifyFlowDroidOfficialConstantQilin'),
+            tasks.named('verifyJulietQilin')
 }

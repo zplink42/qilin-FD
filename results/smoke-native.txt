@@ -1,0 +1,9 @@
+backend=native
+label=smoke-native
+entryPoint=<dev.qilinfd.bench.SimpleLeak: void main(java.lang.String[])>
+callgraph=SPARK
+aliasing=PtsBased
+flowDroidLeaks=1
+runtimeMs=739
+sourceStmt,sinkStmt
+"value = staticinvoke <dev.qilinfd.bench.TaintApi: java.lang.String source()>()","staticinvoke <dev.qilinfd.bench.TaintApi: void sink(java.lang.String)>(value)"

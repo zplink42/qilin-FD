@@ -6,7 +6,10 @@ import java.util.Map;
 
 public final class BridgeMain {
 //    private static final String DEFAULT_CONFIG = "benchmarks/config/smoke-qilin.properties";
-    private static final String DEFAULT_CONFIG = "benchmarks/config/dacapo-eclipse-qilin.properties";
+
+//    private static final String DEFAULT_CONFIG = "benchmarks/config/dacapo-eclipse-qilin.properties";
+
+    private static final String DEFAULT_CONFIG = "benchmarks/config/github-juliet-cwe78.properties";
 
     private BridgeMain() {
     }

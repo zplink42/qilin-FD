@@ -1,0 +1,20 @@
+backend=qilin
+label=github-vulnerable-app-command-level1
+entryPoint=<org.sasanlabs.analysis.CommandInjectionHarness: void main(java.lang.String[])>
+pta=insensitive
+flowDroidCallGraph=qilin
+aliasing=PtsBased
+qilinCallEdges=49483
+flowDroidLeaks=2
+ptaRuntimeMs=14299
+flowDroidRuntimeMs=1393
+totalRuntimeMs=15705
+sourceDefinitions=1
+sinkDefinitions=1
+flowDroidSourceCount=2
+flowDroidSinkCount=2
+flowDroidTaintPropagationSeconds=0
+flowDroidEdgePropagationCount=3834
+sourceMethod,sourceStmt,sinkMethod,sinkStmt
+"<org.sasanlabs.analysis.CommandInjectionHarness: void main(java.lang.String[])>","requestIpAddress = staticinvoke <java.lang.System: java.lang.String getenv(java.lang.String)>(""ipaddress"") @line 11","<org.sasanlabs.service.vulnerability.commandInjection.CommandInjection: java.lang.StringBuilder getResponseFromPingCommand(java.lang.String,boolean)>","specialinvoke $stack15.<java.lang.ProcessBuilder: void <init>(java.lang.String[])>($stack16) @line 46"
+"<org.sasanlabs.analysis.CommandInjectionHarness: void main(java.lang.String[])>","requestIpAddress = staticinvoke <java.lang.System: java.lang.String getenv(java.lang.String)>(""ipaddress"") @line 11","<org.sasanlabs.service.vulnerability.commandInjection.CommandInjection: java.lang.StringBuilder getResponseFromPingCommand(java.lang.String,boolean)>","specialinvoke $stack15.<java.lang.ProcessBuilder: void <init>(java.lang.String[])>($stack16) @line 51"

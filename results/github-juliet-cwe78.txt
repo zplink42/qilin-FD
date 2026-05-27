@@ -1,0 +1,19 @@
+backend=qilin
+label=github-juliet-cwe78-environment-01
+entryPoint=<testcases.CWE78_OS_Command_Injection.CWE78EnvironmentHarness: void main(java.lang.String[])>
+pta=insensitive
+flowDroidCallGraph=qilin
+aliasing=PtsBased
+qilinCallEdges=45353
+flowDroidLeaks=1
+ptaRuntimeMs=11379
+flowDroidRuntimeMs=1079
+totalRuntimeMs=12468
+sourceDefinitions=1
+sinkDefinitions=1
+flowDroidSourceCount=2
+flowDroidSinkCount=1
+flowDroidTaintPropagationSeconds=0
+flowDroidEdgePropagationCount=3097
+sourceMethod,sourceStmt,sinkMethod,sinkStmt
+"<testcases.CWE78_OS_Command_Injection.CWE78_OS_Command_Injection__Environment_01: void bad()>","data = staticinvoke <java.lang.System: java.lang.String getenv(java.lang.String)>(""ADD"") @line 31","<testcases.CWE78_OS_Command_Injection.CWE78_OS_Command_Injection__Environment_01: void bad()>","process = virtualinvoke $stack11.<java.lang.Runtime: java.lang.Process exec(java.lang.String)>(data) @line 46"

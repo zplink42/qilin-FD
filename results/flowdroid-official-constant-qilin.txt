@@ -1,0 +1,19 @@
+backend=qilin
+label=flowdroid-official-constant-easy-var-qilin
+entryPoint=<dev.qilinfd.bench.flowdroid.ConstantTestHarness: void main(java.lang.String[])>
+pta=insensitive
+flowDroidCallGraph=qilin
+aliasing=PtsBased
+qilinCallEdges=18
+flowDroidLeaks=1
+ptaRuntimeMs=971
+flowDroidRuntimeMs=222
+totalRuntimeMs=1206
+sourceDefinitions=1
+sinkDefinitions=1
+flowDroidSourceCount=2
+flowDroidSinkCount=1
+flowDroidTaintPropagationSeconds=0
+flowDroidEdgePropagationCount=6
+sourceMethod,sourceStmt,sinkMethod,sinkStmt
+"<soot.jimple.infoflow.test.ConstantTestCode: void easyConstantVarTest()>","e = staticinvoke <soot.jimple.infoflow.test.android.TelephonyManager: java.lang.String getDeviceId()>() @line 35","<soot.jimple.infoflow.test.ConstantTestCode: void easyConstantVarTest()>","virtualinvoke cm.<soot.jimple.infoflow.test.android.ConnectionManager: void publish(java.lang.String)>(e) @line 37"

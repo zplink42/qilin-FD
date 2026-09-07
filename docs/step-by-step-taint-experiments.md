@@ -30,8 +30,8 @@ flowchart LR
 
 | 条件 | 位置或含义 |
 | --- | --- |
-| Qilin JAR | `lib/qilin/Qilin-0.9.8-SNAPSHOT.jar`，当前包含 Tamiflex local 登记修复 |
-| FlowDroid JAR | Gradle 依赖 `soot-infoflow:2.15.1` |
+| Qilin JAR | `lib/qilin/Qilin-0.10.10.3-SNAPSHOT.jar`（Soot 4.6.0） |
+| FlowDroid JAR | Gradle 依赖 `soot-infoflow:2.14.1` |
 | Java 运行环境模型 | `benchmarks/JREs/jre1.8.0_121_debug` |
 | 桥接入口 | `dev.qilinfd.bridge.BridgeMain` |
 

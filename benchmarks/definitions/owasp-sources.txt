@@ -1,0 +1,18 @@
+# Servlet-controlled values used by OWASP Benchmark Java v1.2.
+<javax.servlet.ServletRequest: java.lang.String getParameter(java.lang.String)>
+<javax.servlet.ServletRequest: java.util.Map getParameterMap()>
+<javax.servlet.ServletRequest: java.util.Enumeration getParameterNames()>
+<javax.servlet.ServletRequest: java.lang.String[] getParameterValues(java.lang.String)>
+<javax.servlet.ServletRequest: javax.servlet.ServletInputStream getInputStream()>
+<javax.servlet.http.HttpServletRequest: java.lang.String getParameter(java.lang.String)>
+<javax.servlet.http.HttpServletRequest: java.util.Map getParameterMap()>
+<javax.servlet.http.HttpServletRequest: java.util.Enumeration getParameterNames()>
+<javax.servlet.http.HttpServletRequest: java.lang.String[] getParameterValues(java.lang.String)>
+<javax.servlet.http.HttpServletRequest: java.lang.String getHeader(java.lang.String)>
+<javax.servlet.http.HttpServletRequest: java.util.Enumeration getHeaders(java.lang.String)>
+<javax.servlet.http.HttpServletRequest: java.util.Enumeration getHeaderNames()>
+<javax.servlet.http.HttpServletRequest: javax.servlet.http.Cookie[] getCookies()>
+<javax.servlet.http.HttpServletRequest: java.lang.String getQueryString()>
+<javax.servlet.http.HttpServletRequest: java.lang.String getRequestURI()>
+<javax.servlet.http.HttpServletRequest: java.lang.StringBuffer getRequestURL()>
+<javax.servlet.http.Cookie: java.lang.String getValue()>

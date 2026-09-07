@@ -1,0 +1,16 @@
+expectedRawRuns=1702
+actualRawRuns=1670
+totalBatches=851
+pairedCompletedBatches=641
+unpairedOrFailedBatches=210
+baselineCompleted=644
+fspecCompleted=660
+
+failureStatusCounts:
+('completed', '', 'excluded', 'flowdroid-oom+termination-2')=3
+('excluded', 'flowdroid-oom+termination-2', 'completed', '')=19
+('excluded', 'flowdroid-oom+termination-2', 'excluded', 'flowdroid-oom+termination-2')=161
+('excluded', 'flowdroid-oom+termination-2', 'excluded', 'flowdroid-timeout+termination-1')=1
+('excluded', 'flowdroid-oom+termination-2', 'missing', 'process-timeout')=6
+('missing', 'process-timeout', 'excluded', 'flowdroid-oom+termination-2')=14
+('missing', 'process-timeout', 'missing', 'process-timeout')=6

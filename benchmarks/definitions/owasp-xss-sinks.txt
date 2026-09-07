@@ -1,0 +1,13 @@
+<java.io.PrintWriter: void print(java.lang.String)>
+<java.io.PrintWriter: void print(java.lang.Object)>
+<java.io.PrintWriter: void print(char[])>
+<java.io.PrintWriter: void println(java.lang.String)>
+<java.io.PrintWriter: void println(java.lang.Object)>
+<java.io.PrintWriter: void write(java.lang.String)>
+<java.io.PrintWriter: void write(java.lang.String,int,int)>
+<java.io.PrintWriter: void write(char[])>
+<java.io.PrintWriter: void write(char[],int,int)>
+<java.io.PrintWriter: java.io.PrintWriter format(java.lang.String,java.lang.Object[])>
+<java.io.PrintWriter: java.io.PrintWriter format(java.util.Locale,java.lang.String,java.lang.Object[])>
+<java.io.PrintWriter: java.io.PrintWriter printf(java.lang.String,java.lang.Object[])>
+<java.io.PrintWriter: java.io.PrintWriter printf(java.util.Locale,java.lang.String,java.lang.Object[])>

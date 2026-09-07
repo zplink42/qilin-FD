@@ -7,7 +7,7 @@ group = 'dev.qilinfd'
 version = '0.0.1-SNAPSHOT'
 
 ext {
-    compatibleFlowDroidVersion = '2.15.1'
+    compatibleFlowDroidVersion = '2.14.1'
 }
 
 repositories {
@@ -24,12 +24,29 @@ application {
     mainClass = 'dev.qilinfd.bridge.BridgeMain'
 }
 
+tasks.register('portableJar', Jar) {
+    description = 'Builds the thin, Linux-portable qlin-FD bridge JAR.'
+    group = 'distribution'
+    dependsOn tasks.named('classes')
+    archiveFileName = 'qilin-FD.jar'
+    destinationDirectory = layout.buildDirectory.dir('portable')
+    from sourceSets.main.output
+    manifest {
+        attributes(
+                'Main-Class': application.mainClass.get(),
+                'Class-Path': 'lib/qilin/Qilin-0.10.10.3-SNAPSHOT.jar '
+                        + 'lib/flowdroid/soot-infoflow-2.14.1.jar'
+        )
+    }
+}
+
 def qilinJarPath = providers.gradleProperty('qilinJar')
-        .orElse(layout.projectDirectory.file('lib/qilin/Qilin-0.9.8-SNAPSHOT.jar').asFile.absolutePath)
+        .orElse(layout.projectDirectory.file('lib/qilin/Qilin-0.10.10.3-SNAPSHOT.jar').asFile.absolutePath)
 
 configurations {
     standaloneFlowDroid
     owaspBenchmarkCompile
+    owaspBenchmarkFullCompile
     vulnerableAppCompile
 }
 
@@ -50,6 +67,49 @@ dependencies {
     }
 
     owaspBenchmarkCompile 'javax.servlet:javax.servlet-api:3.1.0'
+
+    // Matches the direct compile/runtime dependencies of OWASP Benchmark Java v1.2.
+    owaspBenchmarkFullCompile 'javax:javaee-api:8.0.1'
+    owaspBenchmarkFullCompile 'javax.xml.bind:jaxb-api:2.3.1'
+    owaspBenchmarkFullCompile 'com.sun.xml.bind:jaxb-impl:2.3.9'
+    owaspBenchmarkFullCompile 'com.sun.jersey:jersey-servlet:1.19.4'
+    owaspBenchmarkFullCompile 'commons-codec:commons-codec:1.22.0'
+    owaspBenchmarkFullCompile 'commons-dbcp:commons-dbcp:1.4'
+    owaspBenchmarkFullCompile 'commons-io:commons-io:2.22.0'
+    owaspBenchmarkFullCompile 'commons-lang:commons-lang:2.6'
+    owaspBenchmarkFullCompile 'org.slf4j:slf4j-reload4j:2.0.18'
+    owaspBenchmarkFullCompile 'org.apache.directory.api:api-ldap-model:2.1.7'
+    owaspBenchmarkFullCompile 'org.apache.directory.api:api-ldap-schema-data:2.1.7'
+    owaspBenchmarkFullCompile 'org.apache.directory.server:apacheds-core:2.0.0.AM27'
+    owaspBenchmarkFullCompile 'org.apache.directory.server:apacheds-core-annotations:2.0.0.AM27'
+    owaspBenchmarkFullCompile 'org.apache.directory.server:apacheds-core-api:2.0.0.AM27'
+    owaspBenchmarkFullCompile 'org.apache.directory.server:apacheds-core-avl:2.0.0.AM27'
+    owaspBenchmarkFullCompile 'org.apache.directory.server:apacheds-core-constants:2.0.0.AM27'
+    owaspBenchmarkFullCompile 'org.apache.directory.server:apacheds-core-jndi:2.0.0.AM27'
+    owaspBenchmarkFullCompile 'org.apache.directory.server:apacheds-interceptor-kerberos:2.0.0.AM27'
+    owaspBenchmarkFullCompile 'org.apache.directory.server:apacheds-jdbm-partition:2.0.0.AM27'
+    owaspBenchmarkFullCompile 'org.apache.directory.server:apacheds-kerberos-codec:2.0.0.AM27'
+    owaspBenchmarkFullCompile 'org.apache.directory.server:apacheds-ldif-partition:2.0.0.AM27'
+    owaspBenchmarkFullCompile 'org.apache.directory.server:apacheds-protocol-ldap:2.0.0.AM27'
+    owaspBenchmarkFullCompile 'org.apache.directory.server:apacheds-protocol-shared:2.0.0.AM27'
+    owaspBenchmarkFullCompile 'org.apache.directory.server:apacheds-server-annotations:2.0.0.AM27'
+    owaspBenchmarkFullCompile 'org.apache.directory.server:apacheds-server-jndi:2.0.0.AM27'
+    owaspBenchmarkFullCompile 'org.apache.directory.server:apacheds-test-framework:2.0.0.AM27'
+    owaspBenchmarkFullCompile 'org.apache.directory.server:apacheds-xdbm-partition:2.0.0.AM27'
+    owaspBenchmarkFullCompile 'org.apache.httpcomponents.client5:httpclient5:5.6.1'
+    owaspBenchmarkFullCompile 'org.apache.httpcomponents.core5:httpcore5:5.4.2'
+    owaspBenchmarkFullCompile 'org.bouncycastle:bcprov-jdk15on:1.70'
+    owaspBenchmarkFullCompile 'org.hibernate:hibernate-core:3.6.10.Final'
+    owaspBenchmarkFullCompile 'org.hibernate:hibernate-entitymanager:3.6.10.Final'
+    owaspBenchmarkFullCompile 'org.hsqldb:hsqldb:2.7.4'
+    owaspBenchmarkFullCompile 'org.owasp.esapi:esapi:2.7.0.0'
+    owaspBenchmarkFullCompile 'org.springframework:spring-context:5.3.39'
+    owaspBenchmarkFullCompile 'org.springframework:spring-jdbc:5.3.39'
+    owaspBenchmarkFullCompile 'org.springframework:spring-tx:5.3.39'
+    owaspBenchmarkFullCompile 'org.springframework:spring-web:5.3.39'
+    owaspBenchmarkFullCompile 'org.springframework:spring-webmvc:5.3.39'
+    owaspBenchmarkFullCompile 'xml-apis:xml-apis:1.4.01'
+    owaspBenchmarkFullCompile 'com.fasterxml.jackson.core:jackson-databind:2.21.3'
 
     vulnerableAppCompile 'org.springframework:spring-context:5.3.31'
     vulnerableAppCompile 'org.springframework:spring-web:5.3.31'
@@ -78,6 +138,13 @@ tasks.register('stageFlowDroidJar', Sync) {
     preserve {
         include '.gitkeep'
     }
+}
+
+tasks.register('stageBridgeRuntimeLibraries', Sync) {
+    description = 'Stages the bridge runtime dependencies for direct, repeatable Java execution.'
+    group = 'setup'
+    from configurations.runtimeClasspath
+    into layout.buildDirectory.dir('bridge-runtime/lib')
 }
 
 tasks.register('compileSmoke', JavaCompile) {
@@ -171,6 +238,80 @@ tasks.register('owaspBenchmarkSelectedJar', Jar) {
     from tasks.named('compileOwaspBenchmarkSelected').map { it.destinationDirectory }
 }
 
+tasks.register('compileOwaspBenchmarkFull', JavaCompile) {
+    description = 'Compiles OWASP Benchmark Java v1.2 and generated category harnesses.'
+    group = 'verification'
+    source = files(
+            fileTree('owasp-benchmark-java/src/main/java') { include '**/*.java' },
+            fileTree('benchmarks/harness/owasp-focused/src') { include '**/*.java' },
+            fileTree(layout.buildDirectory.dir('generated/owasp-benchmark/src')) { include '**/*.java' })
+    classpath = configurations.owaspBenchmarkFullCompile
+    destinationDirectory = layout.buildDirectory.dir('owasp-benchmark/classes')
+    options.release = 8
+    options.encoding = 'UTF-8'
+    options.compilerArgs += ['-Xlint:-options']
+    doFirst {
+        File generatedRoot = layout.buildDirectory.dir('generated/owasp-benchmark/src').get().asFile
+        if (!generatedRoot.exists() || fileTree(generatedRoot).matching { include '**/*.java' }.isEmpty()) {
+            throw new GradleException('Generate OWASP category harnesses with scripts/run_owasp_fspec.py first.')
+        }
+    }
+}
+
+tasks.register('owaspBenchmarkFullJar', Jar) {
+    description = 'Packages the complete OWASP Benchmark Java corpus and category harnesses.'
+    group = 'verification'
+    dependsOn tasks.named('compileOwaspBenchmarkFull')
+    archiveFileName = 'owasp-benchmark-java-v1.2-analysis.jar'
+    destinationDirectory = layout.buildDirectory.dir('owasp-benchmark')
+    from tasks.named('compileOwaspBenchmarkFull').map { it.destinationDirectory }
+}
+
+tasks.register('stageOwaspBenchmarkFullLibraries', Sync) {
+    description = 'Stages the OWASP Benchmark Java dependency jars for whole-program analysis.'
+    group = 'setup'
+    from configurations.owaspBenchmarkFullCompile
+    into layout.buildDirectory.dir('owasp-benchmark/lib')
+}
+
+tasks.named('run', JavaExec) {
+    maxHeapSize = providers.gradleProperty('analysisHeap').orElse('16g').get()
+}
+
+def registerFocusedOwaspRun = { String taskName, String configName ->
+    tasks.register(taskName, JavaExec) {
+        description = "Runs the focused OWASP XPath regression (${configName})."
+        group = 'verification'
+        dependsOn tasks.named('classes'), tasks.named('owaspBenchmarkFullJar'),
+                tasks.named('stageOwaspBenchmarkFullLibraries')
+        classpath = sourceSets.main.runtimeClasspath
+        mainClass = application.mainClass
+        maxHeapSize = '16g'
+        workingDir = projectDir
+        args = ['run', '--config',
+                file("benchmarks/config/owasp-xpath-00442-${configName}.properties").absolutePath]
+    }
+}
+
+registerFocusedOwaspRun('runOwaspXpathFocusedBaseline', 'baseline')
+registerFocusedOwaspRun('runOwaspXpathFocusedFspec', 'fspec')
+
+tasks.register('verifyOwaspXpathFocusedPair') {
+    description = 'Checks that baseline and FSpec both preserve OWASP XPath test 00442.'
+    group = 'verification'
+    dependsOn tasks.named('runOwaspXpathFocusedBaseline'),
+            tasks.named('runOwaspXpathFocusedFspec')
+    doLast {
+        for (String mode : ['baseline', 'fspec']) {
+            File result = file("results/owasp/focused/xpathi-00442-1o-${mode}.txt")
+            if (!result.text.contains('projectedFlowDroidLeaks=1')) {
+                throw new GradleException(
+                        "Expected one ${mode} OWASP XPath leak in ${result}.")
+            }
+        }
+    }
+}
+
 tasks.register('compileJulietSelected', JavaCompile) {
     description = 'Compiles the Juliet CWE-78 environment-to-command baseline and its explicit entry harness.'
     group = 'verification'
@@ -248,6 +389,17 @@ tasks.register('runSmokeQilin', JavaExec) {
     configureAnalysisRun(delegate, 'qilin')
 }
 
+tasks.register('runSmokeFspec', JavaExec) {
+    description = 'Analyzes the smoke target with Qilin FSpec call graph and points-to results.'
+    group = 'verification'
+    dependsOn tasks.named('classes'), tasks.named('smokeJar')
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = application.mainClass
+    maxHeapSize = '4g'
+    workingDir = projectDir
+    args = ['run', '--config', file('benchmarks/config/smoke-fspec.properties').absolutePath]
+}
+
 tasks.register('runSmokeNative', JavaExec) {
     description = 'Analyzes the smoke target with FlowDroid/Soot native SPARK configuration.'
     group = 'verification'
@@ -260,8 +412,45 @@ tasks.register('verifySmokeQilin') {
     dependsOn tasks.named('runSmokeQilin')
     doLast {
         File result = file('results/smoke-qilin.txt')
-        if (!result.text.contains('flowDroidLeaks=1')) {
+        if (!result.text.contains('projectedFlowDroidLeaks=1')) {
             throw new GradleException("Expected one Qilin-backed FlowDroid leak in ${result}.")
+        }
+    }
+}
+
+tasks.register('verifySmokeFspec') {
+    description = 'Runs the FSpec-backed smoke analysis and checks that the known leak is preserved.'
+    group = 'verification'
+    dependsOn tasks.named('runSmokeFspec')
+    doLast {
+        File result = file('results/smoke-fspec.txt')
+        if (!result.text.contains('projectedFlowDroidLeaks=1')) {
+            throw new GradleException("Expected one FSpec-backed FlowDroid leak in ${result}.")
+        }
+    }
+}
+
+tasks.register('runOwaspBenchmarkFspec', JavaExec) {
+    description = 'Runs the selected OWASP positive case with Qilin FSpec.'
+    group = 'verification'
+    dependsOn tasks.named('classes'), tasks.named('owaspBenchmarkSelectedJar'),
+            tasks.named('stageOwaspBenchmarkLibraries')
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = application.mainClass
+    maxHeapSize = '4g'
+    workingDir = projectDir
+    args = ['run', '--config',
+            file('benchmarks/config/github-owasp-benchmark-xss-fspec.properties').absolutePath]
+}
+
+tasks.register('verifyOwaspBenchmarkFspec') {
+    description = 'Checks that FSpec preserves the selected OWASP expected-positive flow.'
+    group = 'verification'
+    dependsOn tasks.named('runOwaspBenchmarkFspec')
+    doLast {
+        File result = file('results/github-owasp-benchmark-xss-fspec.txt')
+        if (!result.text.contains('projectedFlowDroidLeaks=1')) {
+            throw new GradleException("Expected one FSpec-backed OWASP leak in ${result}.")
         }
     }
 }
@@ -295,7 +484,7 @@ tasks.register('verifySecuriBenchBasic1Qilin') {
     dependsOn tasks.named('runSecuriBenchBasic1Qilin')
     doLast {
         File result = file('results/securibench-basic1-qilin.txt')
-        if (!result.text.contains('flowDroidLeaks=1')) {
+        if (!result.text.contains('projectedFlowDroidLeaks=1')) {
             throw new GradleException("Expected one Qilin-backed FlowDroid leak in ${result}.")
         }
     }
@@ -376,7 +565,7 @@ def registerGithubLeakVerification = { String taskName, String descriptionText, 
         dependsOn tasks.named(runTaskName)
         doLast {
             File result = file("results/${resultName}")
-            String expected = "flowDroidLeaks=${expectedLeaks}"
+            String expected = "projectedFlowDroidLeaks=${expectedLeaks}"
             if (!result.text.contains(expected)) {
                 throw new GradleException("Expected ${expected} in ${result}.")
             }

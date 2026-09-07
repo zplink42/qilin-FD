@@ -1,0 +1,2 @@
+# Example external input model for an Eclipse experiment. Replace or extend for the question under study.
+<java.lang.System: java.lang.String getenv(java.lang.String)>

@@ -58,8 +58,8 @@ flowchart TD
 
 ## 4. Qilin JAR 如何替换
 
-工程默认从 `lib/qilin/Qilin-0.9.8-SNAPSHOT.jar` 加载 Qilin。该文件来自
-classic-Soot Qilin 项目，并已包含 Tamiflex 反射建模的 local 登记修复。
+工程默认从 `lib/qilin/Qilin-0.10.10.3-SNAPSHOT.jar` 加载 Qilin。该文件来自
+`D:/gitdesk/qilin-generics`，并保持该项目的 classic Soot 4.6.0。
 
 将另一个兼容 JAR 放到同一目录后，可在一次实验中覆盖默认版本：
 
@@ -84,9 +84,9 @@ SootUp 版本的 Qilin 使用 `sootup.core.*` 类型，不能仅通过换这个 
 
 | 参数或位置 | 默认值 | 作用 |
 | --- | --- | --- |
-| `lib/qilin/Qilin-0.9.8-SNAPSHOT.jar` | 已放入工程 | 默认 Qilin PTA 实现 |
+| `lib/qilin/Qilin-0.10.10.3-SNAPSHOT.jar` | 已放入工程 | 默认 Qilin PTA 实现（Soot 4.6.0） |
 | Gradle `-PqilinJar=<path>` | 上述本地 JAR | 为某次构建选择另一个兼容 Qilin JAR |
-| `compatibleFlowDroidVersion` | `2.15.1` | `build.gradle` 中固定的独立 FlowDroid 版本 |
+| `compatibleFlowDroidVersion` | `2.14.1` | `build.gradle` 中固定的独立 FlowDroid 版本 |
 
 ### 5.2 配置文件字段
 

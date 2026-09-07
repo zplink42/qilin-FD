@@ -1,209 +1,170 @@
-# Qilin FlowDroid Bridge
+# Qilin–FlowDroid：FSpec 下游污点分析实验
 
-这是一个普通 Java 应用工程，用来把 FlowDroid 当作 Qilin 指针分析效果的观测工具，而不是开发
-Android 应用或修改 FlowDroid 内部实现。项目支持两种运行方式：
+本项目研究 **Qilin 中的泛型特化机制 FSpec 对下游污点分析的影响**。实验使用改造后的
+`qilin-generics` 构件，通过关闭或开启 `-generic=FS`，比较同一个 FlowDroid 客户端的
+检测结果和分析成本。
 
-- `qilin`：加载独立 Qilin JAR 运行 PTA，再由本工程将 Qilin call graph 和 points-to
-  查询适配给独立 FlowDroid JAR。这是当前主要实验路径。
-- `native`：直接使用 FlowDroid/Soot 自身的 call graph 配置，作为不经过 Qilin 的基线。
+我们在固定 OWASP 语料、Qilin 构件、PTA 模式和 FlowDroid 配置下，配对比较关闭与开启
+FSpec 的效果。Qilin 提供调用图和 points-to 信息，经桥接适配后供 FlowDroid 执行污点分析。
+我们在双方正常完成的批次交集上，比较测试级检测结果、调用图规模、传播次数、各阶段耗时
+与端到端耗时，并单独报告覆盖率和失败情况。**现有论文快照显示，在该配对子集上，测试级
+检测结果保持不变，投影调用图和累计传播次数下降，累计端到端时间有所改善。**
 
-## 当前结论
+## 1. 实验比较什么
 
-默认评估构件是已复制到本工程、包含 Tamiflex local 登记修复的版本
-`lib/qilin/Qilin-0.9.8-SNAPSHOT.jar`，其来源为
-`D:/gitdesk/Qilin/artifact/Qilin-0.9.8-SNAPSHOT.jar`。它只负责 Qilin PTA 与其
-经典 Soot 数据模型；本工程仅依赖 `qilin.core.PTA` 的 `getCallGraph()` 与
-`reachingObjects(...)` 系列接口，并在 `src/main/java/dev/qilinfd/bridge/` 内完成
-FlowDroid 所需的 points-to 适配和既有调用图安装。
+两组都使用同一个 Qilin JAR 和同一条 Qilin–FlowDroid 桥接路径，主要实验变量是 FSpec 开关。
 
-`D:/gitdesk/sootup/build/libs/sootup-qilin-1.0.0-SNAPSHOT.jar` 使用的是
-`sootup.core.*` 模型与自己的调用图类型；当前 FlowDroid `soot-infoflow` 使用经典
-`soot.*` API，因此该 JAR 不能直接接到同一条 FlowDroid 路径上。
+生成配置时，两组的 Qilin 参数分别为：
 
-详细接口对应关系见 [docs/qilin-flowdroid-interface.md](docs/qilin-flowdroid-interface.md)。
-第一次接触 FlowDroid 时，请从
-[docs/flowdroid-for-qilin-users.md](docs/flowdroid-for-qilin-users.md) 开始阅读，其中
-按执行顺序解释了 source/sink、桥接流程与所有常用配置项。
-按源码选定 source/sink 并实际复现实验的教程见
-[docs/step-by-step-taint-experiments.md](docs/step-by-step-taint-experiments.md)，其中逐步运行
-smoke、FlowDroid 官方正例和 Juliet CWE-78。
+```text
+baseline: -pae -pe -clinit=ONFLY -lcs -mh -se -pta=1o
+fspec:    -pae -pe -clinit=ONFLY -lcs -mh -se -pta=1o -generic=FS
+```
 
-## 依赖布局
+基础配置见 [owasp-benchmark-qilin.properties](benchmarks/config/owasp-benchmark-qilin.properties)。
+项目还提供 `native` 后端，让 FlowDroid/Soot 自己建图，供其他验证使用；**当前 OWASP 实验中的 baseline 指关闭 FSpec 的 Qilin 配置**。
 
-默认运行时的两个核心分析构件是：
+### 语料与执行单位
 
-- `lib/qilin/Qilin-0.9.8-SNAPSHOT.jar`：工程内默认、可替换的 Qilin PTA JAR，
-  当前包含与 PTA 配套的经典 Soot `4.7.1`。
-- `de.fraunhofer.sit.sse.flowdroid:soot-infoflow:2.15.1`：独立 FlowDroid JAR；
-  该版本同样面向 Soot `4.7.1`。
+使用 OWASP Benchmark Java v1.2，固定 revision 为`3bcffb0f6b5a9e45f5874c8cf0deec476ba4dc7b`。从全部 2,740 个测试中选择七类source-to-sink 污点测试，共 **1,698 个测试**：
 
-工程显式添加 FlowDroid 运行所需的 Trove 支持库和日志实现，但不引入第二份 Soot。
-可将使用的 FlowDroid JAR 同步到本地 `lib/flowdroid/` 供检查：
+| 类别 | 脚本中的名称 | 测试数 |
+|---|---|---:|
+| 命令注入 | `cmdi` | 251 |
+| LDAP 注入 | `ldapi` | 59 |
+| 路径遍历 | `pathtraver` | 268 |
+| SQL 注入 | `sqli` | 504 |
+| 信任边界违规 | `trustbound` | 126 |
+| XPath 注入 | `xpathi` | 35 |
+| 跨站脚本 | `xss` | 455 |
+
+共生成 **851 个 batch**；每个 batch 分别在独立 JVM 中执行 baseline 和 fspec，全量目标为 **1,702 次分析**。批次与测试的对应关系保存在`build/owasp-benchmark/batch-manifest.csv`。
+
+## 2. src：负责把 Qilin 与 FlowDroid 接起来
+
+[src](src) 保存 Java bridge 及其配置测试。Qilin 的 PTA/FSpec 实现在外部 Qilin 构件中，本工程负责调用它、适配分析结果、启动 FlowDroid，并输出实验数据。
+
+主要实现位于 `src/main/java/dev/qilinfd/bridge/`：
+
+| 源码 | 职责 |
+|---|---|
+| [BridgeMain.java](src/main/java/dev/qilinfd/bridge/BridgeMain.java) | 命令行入口，读取配置并选择分析后端。 |
+| [AnalysisConfig.java](src/main/java/dev/qilinfd/bridge/AnalysisConfig.java) | 解析程序路径、库、入口、source/sink 和分析设置，组合 Qilin 参数。 |
+| [QilinFlowDroidBackend.java](src/main/java/dev/qilinfd/bridge/QilinFlowDroidBackend.java) | 执行 Qilin PTA，安装调用图和点集 adapter，运行 FlowDroid，记录耗时、状态和污点结果。 |
+| [QilinSootPointsToAnalysis.java](src/main/java/dev/qilinfd/bridge/flowdroid/QilinSootPointsToAnalysis.java) | 把 FlowDroid/Soot 的 points-to 查询转发给 Qilin；查询原 local/field 时合并对应的 FSpec 特化变体。 |
+| [QilinSootPointsToSet.java](src/main/java/dev/qilinfd/bridge/flowdroid/QilinSootPointsToSet.java) | 包装 Qilin 点集，提供集合相交、类型等查询，并将特化分配位置对应回原程序。 |
+| [QilinBiDirICFGFactory.java](src/main/java/dev/qilinfd/bridge/flowdroid/QilinBiDirICFGFactory.java)、[QilinJimpleBasedICFG.java](src/main/java/dev/qilinfd/bridge/flowdroid/QilinJimpleBasedICFG.java) | 基于 Qilin 已安装的调用图构建跨过程控制流图，并维护语句与所属方法的对应关系。 |
+| [QilinInfoflow.java](src/main/java/dev/qilinfd/bridge/flowdroid/QilinInfoflow.java)、[SafePtsBasedAliasStrategy.java](src/main/java/dev/qilinfd/bridge/flowdroid/SafePtsBasedAliasStrategy.java) | 接入 points-to 别名策略，对 FlowDroid 无法表示的 access path 做保护处理并记录计数。 |
+| [NativeFlowDroidBackend.java](src/main/java/dev/qilinfd/bridge/NativeFlowDroidBackend.java) | 提供不经过 Qilin 的 FlowDroid/Soot 运行路径。 |
+| [AnalysisConfigTest.java](src/test/java/dev/qilinfd/bridge/AnalysisConfigTest.java) | 验证配置解析与参数约束。 |
+
+一次 OWASP 分析的执行链为：
+
+```text
+batch 配置
+  → BridgeMain / AnalysisConfig
+  → Qilin PTA：关闭或开启 FSpec
+  → 安装原程序投影调用图和 Qilin points-to adapter
+  → FlowDroid：使用既有调用图进行污点分析
+  → 输出状态、指标和 source-to-sink 记录
+```
+
+桥接中同时处理调用图投影和点集映射：FlowDroid 查询原程序变量时，能够看到其特化变体对应的分析结果。FlowDroid 使用 `UseExistingCallgraph`，不会在这条路径上重新用 Spark替换 Qilin 调用图。具体接口见 [Qilin 与 FlowDroid 接口说明](docs/qilin-flowdroid-interface.md)。
+
+## 3. scripts：负责组织实验、汇总和出图
+
+[scripts](scripts) 中的 Python 脚本把 Java bridge 组织成批量实验流程：
+
+| 脚本 | 作用 | 主要输出 |
+|---|---|---|
+| [run_owasp_fspec.py](scripts/run_owasp_fspec.py) | 主 runner。支持 `prepare`、`run`、`compare`、`all`；固定语料、生成 harness、准备构件、执行两组配置，支持分片和续跑。 | `build/owasp-benchmark/` 中的输入；`results/owasp/` 中的配置、日志、raw 和初步汇总。 |
+| [paper/run_owasp_downstream.py](scripts/paper/run_owasp_downstream.py) | 包装主 runner，统一传入 PTA、heap、超时和 batch 参数；通过 `--workers` 启动多个 worker。 | 主 runner 的结果，以及多 worker 模式下的 `worker-logs/`。 |
+| [paper/summarize_owasp_downstream.py](scripts/paper/summarize_owasp_downstream.py) | 对双方均成功的 batch 做配对统计，生成检测指标、成本指标、差异和完成状态。 | 默认写入 `results/owasp/analysis/`，可用 `--output-dir` 指定目录。 |
+| [paper/plot_owasp_downstream.py](scripts/paper/plot_owasp_downstream.py) | 读取 paired summary 的 `ALL` 行，绘制相对于 baseline 的调用图、传播次数和端到端时间。 | 默认写入 `reports/owasp-paper/data/FlowDroid.pdf` 和 `.png`。 |
+| [package_linux_release.py](scripts/package_linux_release.py) | 构建并打包 Linux 运行组件、预编译 OWASP 输入、依赖和校验文件。 | `release/` 下的运行包与 benchmark 包。 |
+
+需要区分两种“比较”：
+
+- 主 runner 的 `compare` 生成**初步汇总**，主表分别使用两侧各自成功的样本。
+- `summarize_owasp_downstream.py` 生成**论文配对汇总**，两侧使用同一个成功 batch 交集。
+
+## 4. results：原始证据、过程记录与配对统计
+
+**`results` 是实验输出目录，但目录中的文件并不都等同于“最终实验结果”。**
+其中既有每次分析的原始结果，也有运行配置、日志、诊断记录和用于论文比较的汇总。
+
+### 4.1 目录中的文件分别是什么
+
+| 路径 | 含义 | 在实验中的用途 |
+|---|---|---|
+| `results/*.txt` | smoke、SecuriBench、FlowDroid 官方样例、Juliet 等单项验证结果；也包含早期单个 OWASP XSS 用例。 | 检查接线与回归，不代表 OWASP 批量实验的总体结果。 |
+| `results/owasp/configs/` | 为每个 batch、PTA 和 mode 生成的 `.properties`。 | 记录这次分析输入了什么配置。 |
+| `results/owasp/logs/` | 每次 Java 分析的完整控制台日志。 | 排查异常、超时、内存问题及分析过程。 |
+| `results/owasp/raw/` | 每个 batch、每个配置侧的一份原始结果。 | 重新评分和核验统计的基础证据。 |
+| `results/owasp/failures/` | 进程失败时生成的原因、命令和日志路径；没有此类失败时目录可能不存在。 | 判断哪些配置需要补跑。 |
+| `results/owasp/workers/` | 已有运行留下的 worker 日志和 PID 文件。 | 执行过程记录；当前 paper wrapper 的多 worker 日志写在项目根目录 `worker-logs/`。 |
+| `results/owasp/focused/` | 针对单个 OWASP 用例的诊断或回归结果，例如 XPath 00442。 | 检查特定污点流与适配行为。 |
+| `results/owasp/diagnostics/` | 旧版本、旧接口或诊断阶段的结果归档。 | 追踪问题，不混入当前正式配对统计。 |
+| `results/owasp/summary-1o.csv` | 普通 `compare` 的分类汇总，两侧成功范围可能不同。 | 初步查看运行情况，不直接作为配对性能或准确率比较。 |
+| `results/owasp/differences-1o.csv` | 普通比较器在共同测试范围上得到的测试级报告差异。 | 初步定位新增或消失的告警。 |
+| `results/owasp/preliminary-report-1o.md` | 普通比较器生成的可读报告。 | 初步结果说明。 |
+| `results/owasp/analysis/` | 论文配对汇总及覆盖率、状态等文件。 | 查看配对子集的定量比较，同时核对数据来源。 |
+
+### 4.2 论文比较主要看哪些文件
+
+配对汇总器默认输出以下文件，也可以写入独立的本轮结果目录：
+
+| 文件 | 含义 |
+|---|---|
+| `paired-summary-1o.csv` | **主要定量结果表**。每类一行，另有 `ALL` 总体行；包含两侧检测指标、耗时、调用图、传播次数和变化比例。 |
+| `paired-differences-1o.csv` | 配对子集中两侧报告不一致的测试编号、真实标签和变化方向。 |
+| `run-status-1o.csv` | 每个 batch 的两侧状态、失败原因、是否形成成功配对，以及部分运行指标。 |
+| `coverage-summary-1o.txt` | 预期运行数、原始结果文件数、成功配对数、两侧完成数与失败情况。 |
+| `remaining-failures-1o.csv` | 尚未形成成功配对的 batch，供检查或补跑。 |
+| `compare-1o.log`（如存在） | 保存的普通 compare 执行记录，不是指标表。 |
+
+### 4.3 当前本地结果与论文快照
+
+- `results/owasp/raw/` 有 **14 份原始结果，即 7 个完整配对 batch、14 个测试**。
+- `reports/owasp-paper/data/` 保存的论文快照覆盖 **641 个完整配对 batch、1,278 个测试**。
+- 当前 `results/owasp/analysis/` 中的 paired summary 和 run-status 与该论文快照相同。
+
+两侧均报告 420 个测试，测试集合不变；投影调用图均值下降 11.33%，累计传播次数下降 13.61%，累计端到端时间下降 15.19%。
+
+## 5. 常用执行顺序
+
+从项目根目录执行。构建和运行 bridge 使用 JDK 21，目标程序使用配置中的 Java 8 JRE；Python 需要 3.10 或以上，绘图另需 Matplotlib。Linux 环境将 `python` 换为 `python3`。
+
+先验证基础接线：
 
 ```powershell
-gradle stageFlowDroidJar
+.\gradlew.bat test verifySmokeQilin verifySmokeFspec
 ```
 
-要评估另一个 Qilin 版本，把兼容的 JAR 放入 `lib/qilin/` 并在命令中选择它：
+准备固定语料、生成 batch 并构建分析输入：
 
 ```powershell
-.\gradlew.bat verifySmokeQilin -PqilinJar=lib/qilin/Qilin-my-optimization.jar
+python scripts/run_owasp_fspec.py prepare --categories all --batch-size 2
 ```
 
-也可以复制 `gradle.properties.example` 为 `gradle.properties`，长期设置
-`qilinJar`。
+需要构建并复制相邻 `qilin-generics` 仓库中的新 Qilin JAR 时，才给 `prepare` 增加`--refresh-qilin`。正式比较应固定所选构件及其依赖。
 
-## 快速验证
-
-运行工程自带的普通 Java 泄漏样例：
+执行两组实验，下面是一组显式资源设置示例；实际 heap 和 worker 数按机器资源设置：
 
 ```powershell
-gradle test verifySmokeQilin verifySmokeNative
+python scripts/paper/run_owasp_downstream.py run --categories all --modes baseline,fspec --pta 1o --heap 32g --timeout 7200 --process-timeout 14400 --workers 1
 ```
 
-运行已拉取的 SecuriBench Micro 中已知存在 1 条泄漏的 `Basic1`：
+单独从当前 raw 生成配对统计。这里使用新目录，保留已有论文快照：
 
 ```powershell
-gradle verifySecuriBenchBasic1Qilin
+python scripts/paper/summarize_owasp_downstream.py --pta 1o --force-raw --output-dir results/owasp/analysis-current
 ```
 
-运行三个 GitHub Java 项目中经源码确认的漏洞路径：
+检查该目录中的 `coverage-summary`、`run-status` 和 `paired-summary` 后，再显式选择本轮summary 出图：
 
 ```powershell
-gradle verifyGithubCorpusQilin
+python scripts/paper/plot_owasp_downstream.py --summary results/owasp/analysis-current/paired-summary-1o.csv --output-dir reports/owasp-current
 ```
 
-运行教程中三个由小到大的实验，并核对各自的预期泄漏数：
-
-```powershell
-gradle verifyGuidedExperimentsQilin
-```
-
-结果写在 `results/`。`qilin` 输出包含 Qilin 调用图边数、PTA 耗时、
-FlowDroid 耗时和泄漏结果；`native` 输出提供 FlowDroid/Soot 基线结果。
-
-## 配置实验
-
-配置文件位于 `benchmarks/config/`。配置分成三部分：
-
-1. 顶层公共字段：描述被分析程序、source/sink 和两条路线共同使用的 FlowDroid 设置。
-2. `qilinFlags`：仅描述 Qilin JAR 自身的 PTA/建图参数。
-3. `nativeFlags`：仅描述 native FlowDroid/Soot 路线特有的建图参数。
-
-| 公共字段 | 必要性 | 作用 | 示例 |
-| --- | --- | --- | --- |
-| `backend` | 必需 | 选择执行方向 | `qilin` / `native` |
-| `label` | 可选 | 写入结果的实验名称 | `smoke-qilin` |
-| `appPath` | 必需 | 被分析的普通 Java 应用 JAR 或目录 | `build/smoke/qilinfd-smoke.jar` |
-| `libraries` | 可选 | 应用依赖库 JAR 或目录 | `benchmarks/securibench-micro/lib` |
-| `mainClass` | 必需 | 包含 `main(String[])` 的入口类 | `dev.qilinfd.bench.SimpleLeak` |
-| `jre` | 通常必需 | 分析目标使用的 JRE；Qilin 接收该路径，native 将其 `lib/*.jar` 加入 classpath | `benchmarks/JREs/jre1.8.0_121_debug` |
-| `reflectionLog` | 可选 | 目标程序的反射日志；当前 Qilin 路线会传给 Qilin JAR | `benchmarks/dacapo2006/eclipse-refl.log` |
-| `sources` | 必需 | FlowDroid source 签名定义文件 | `benchmarks/definitions/smoke-sources.txt` |
-| `sinks` | 必需 | FlowDroid sink 签名定义文件 | `benchmarks/definitions/smoke-sinks.txt` |
-| `output` | 可选 | bridge 输出文本结果的位置 | `results/smoke-qilin.txt` |
-| `aliasing` | 可选，默认 `pts` | 两条路线共用的 FlowDroid alias 策略 | `pts` / `flow` / `lazy` / `none` |
-| `threads` | 可选，默认 `1` | FlowDroid 数据流阶段最大线程数 | `1` |
-| `timeoutSeconds` | 可选，默认 `0` | FlowDroid 数据流阶段超时；`0` 表示不设置超时 | `300` |
-| `qilinFlags` | `backend=qilin` 时必需 | 可替换 Qilin JAR 特有的选项 | 见下表 |
-| `nativeFlags` | `backend=native` 时必需 | native FlowDroid/Soot 特有的选项 | 见下表 |
-
-`appPath`、`libraries`、`mainClass`、`jre`、`sources`、`sinks` 与 FlowDroid 公共设置
-故意位于顶层：比较 Qilin 与 native 时，这些内容应保持同一份定义。配置加载器会拒绝
-在 `qilinFlags` 或 `nativeFlags` 中再次放入这些选项，防止配置含义重复。
-
-Qilin 路径配置示例：
-
-```properties
-backend=qilin
-label=smoke-qilin
-appPath=build/smoke/qilinfd-smoke.jar
-mainClass=dev.qilinfd.bench.SimpleLeak
-jre=benchmarks/JREs/jre1.8.0_121_debug
-aliasing=pts
-threads=1
-qilinFlags=-pae -pe -clinit=ONFLY -lcs -mh -se -pta=insens
-sources=benchmarks/definitions/smoke-sources.txt
-sinks=benchmarks/definitions/smoke-sinks.txt
-output=results/smoke-qilin.txt
-```
-
-Native 基线配置示例：
-
-```properties
-backend=native
-label=smoke-native
-appPath=build/smoke/qilinfd-smoke.jar
-mainClass=dev.qilinfd.bench.SimpleLeak
-jre=benchmarks/JREs/jre1.8.0_121_debug
-aliasing=pts
-threads=1
-nativeFlags=-cgalgo=SPARK
-sources=benchmarks/definitions/smoke-sources.txt
-sinks=benchmarks/definitions/smoke-sinks.txt
-output=results/smoke-native.txt
-```
-
-### `qilinFlags` 参数
-
-这些参数原样传给可替换的 Qilin JAR。bridge 会依据顶层公共字段自动补充 Qilin
-所需的 `-apppath`、`-libpath`、`-mainclass`、`-jre` 和 `-reflectionlog`。
-下表覆盖当前 `Qilin-0.9.8-SNAPSHOT.jar` 中应由用户选择的分析选项。
-
-| 参数 | 作用 |
-| --- | --- |
-| `-includeall` | 意图为包含默认未分析的包；Qilin 0.9.8 源码对该选项的检查存在拼写问题，当前不要依赖它 |
-| `-exclude <pkg1;pkg2>` | 排除指定包 |
-| `-pta=<pattern>` | 选择 PTA，例如 `insens`、`1o`、`2o1h` |
-| `-pae` | 使用更精确的数组元素类型 |
-| `-pe` | 更精确地处理异常流 |
-| `-clinit=APP|FULL|ONFLY` | 选择类初始化方法的加载方式 |
-| `-mh` | 合并 StringBuilder/StringBuffer/Throwable 等 heap |
-| `-lcs` | 对 String/Exception 等类型限制 heap context |
-| `-se` | 仅使用一个 main 方法入口的轻量模式 |
-| `-sc` | 区分并传播字符串常量 |
-| `-cga=CHA|VTA|RTA|SPARK|GEOM|QILIN` | 选择 Qilin 运行阶段的调用图算法 |
-| `-cd` | 启用 context debloating |
-| `-cda=CONCH|DEBLOATERX` | 选择 debloating 方法 |
-| `-tc=DEFAULT|PHASE_ONE|PHASE_TWO` | Turner 配置 |
-| `-tmd` | 令 Turner 以 modular 方式运行 |
-| `-pre` | 仅运行 pre-analysis |
-| `-dumpcallgraph` | 输出调用图 |
-| `-dumpjimple` | 输出应用 Jimple |
-| `-dumpstats` | 输出完整统计 |
-| `-dumpsimplestats` | 输出简化统计 |
-| `-dumppts` | 输出应用 points-to 结果 |
-| `-dumpallpts` | 同时输出库变量 points-to 结果 |
-| `-dumppag` | 输出 PAG |
-
-### `nativeFlags` 参数
-
-`native` 表示不调用 Qilin。程序输入和 FlowDroid 公共设置仍读取顶层字段；
-当前 native 专属参数只有 Soot 调用图算法：
-
-| 参数 | 作用 |
-| --- | --- |
-| `-cgalgo=AUTO|CHA|VTA|RTA|SPARK|GEOM|ONDEMAND` | 由 FlowDroid/Soot 构建调用图时采用的算法 |
-
-`BridgeMain` 在无参数启动时读取 `benchmarks/config/dacapo-eclipse-qilin.properties`，
-其中顶层字段描述 Eclipse 输入、反射日志与 FlowDroid 设置，`qilinFlags` 只包含
-Qilin 分析选择。该配置同时包含 FlowDroid 所需的示例 source/sink。
-
-## 测试语料
-
-- `benchmarks/securibench-micro`：原始 Java SecuriBench Micro 子模块，适合 precision/recall
-  小测试，且用例带预期漏洞数量。
-- `benchmarks/flowdroid-official`：FlowDroid 官方子模块；当前已将官方断言为 1 条流的
-  `ConstantTestCode.easyConstantVarTest()` 接为普通 Java Qilin 实验，其余官方测试
-  可继续转成批量实验清单。
-- `benchmarks/github/benchmark-java`：OWASP BenchmarkJava，当前选取一个官方标记为
-  `true` 的 XSS 用例进行 Qilin/FlowDroid 实测。
-- `benchmarks/github/juliet-test-suite`：Juliet Java Test Suite，当前选取 CWE-78
-  环境变量到命令执行的明确坏路径。
-- `benchmarks/github/vulnerable-app`：SasanLabs VulnerableApp，当前选取命令注入
-  Level 1 路由，并以普通 Java harness 模拟 Spring 请求参数输入。
-- `benchmarks/smoke`：本工程的最小、可稳定执行的 Java 集成样例。
-
-FlowDroid 官方仓库也含 DroidBench，但它属于 Android 测试集，不作为本工程的默认目标。
-三个 GitHub 项目的 source/sink 取证、入口建模方式与实测结果记录在
-[docs/github-taint-corpus-report.md](docs/github-taint-corpus-report.md)。
+当前主 runner 会跳过已经存在的 raw；修改构件或配置后应明确管理新一轮结果，不能直接把旧文件当作新运行。普通 compare、结果完整性判断以及失败重跑后的旧结果处理仍有已确认的边界问题；`--force-raw` 只保证使用本地 raw，不会修复这些问题。

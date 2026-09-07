@@ -6,3 +6,4 @@ sootOutput/
 results/
 lib/flowdroid/*.jar
 *.log
+owasp-benchmark-java/
